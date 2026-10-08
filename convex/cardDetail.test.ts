@@ -156,9 +156,9 @@ describe("cards.detail", () => {
     const card = await t.query(api.cards.detail, { key: ZORO });
     expect(card?.regions.map((r) => [r.site, r.printings.map((p) => p.key)])).toEqual([
       // The fixture's own en printings ride along. With no locator, a printing
-      // ties on image id and falls back to key; prt_..2 carries the fixture's
-      // cn:6987 locator, so it sorts after the unlocated parallel prt_..3.
-      ["en", ["prt_000000000004", "prt_00000000000d", "prt_000000000003", "prt_000000000002", "prt_000000000001"]],
+      // ties on image id and falls back to key, so the unlocated parallels
+      // prt_..2 and prt_..3 read before prt_..1 and its OP01-001_p1.
+      ["en", ["prt_000000000004", "prt_00000000000d", "prt_000000000002", "prt_000000000003", "prt_000000000001"]],
       ["asia-en", ["prt_00000000000c"]],
       ["jp", ["prt_00000000000b", "prt_00000000000a"]],
     ]);

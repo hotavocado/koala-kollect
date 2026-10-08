@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
 import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { cardLabel, ColorDots, handoutWhen, Notice, quantityNoteShown, releaseLabel } from "../ui";
+import { cardLabel, cnOnly, ColorDots, handoutWhen, Notice, quantityNoteShown, releaseLabel } from "../ui";
 
 const SITE_LABEL: Record<CardRegion["site"], string> = {
   en: "English",
@@ -137,6 +137,12 @@ function Detail({ card }: { card: CardDetail }) {
             {card.officialUrl && (
               <p className="mt-2 text-sm">
                 <OfficialLink href={card.officialUrl}>See the card on the official card list</OfficialLink>
+              </p>
+            )}
+            {cnOnly(card.regions) && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Listed only on the Simplified Chinese card list, so its name and text are in Chinese, and there is
+                no official page to link to.
               </p>
             )}
           </div>

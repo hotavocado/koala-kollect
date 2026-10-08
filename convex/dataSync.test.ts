@@ -147,6 +147,37 @@ describe("dataSync.run", () => {
     expect(stored).not.toHaveProperty("effect");
   });
 
+  // cn lists OP06-050 twice in OPC-06 (ids 2763 and 2764): same name, rarity
+  // and number, and only 2764's image file says P. The contract mints each
+  // printing's key from cn:{id}, so they are two printings of one card; a key
+  // built from site and number would fold them into one.
+  test("cn's OP06-050 pair stays two printings of one card through a sync and a re-sync", async () => {
+    const t = convexTest(schema, modules);
+    serve({ [COMMIT_A]: await repoAt() });
+    await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    await t.action(internal.dataSync.run, { commit: COMMIT_A, force: true });
+
+    const pair = await t.run(async (ctx) =>
+      Promise.all(
+        ["cn:2763", "cn:2764"].map(async (key) => {
+          const loc = await ctx.db.query("printing_locators").withIndex("by_key", (q) => q.eq("key", key)).unique();
+          const prt = await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", loc!.printing_key)).unique();
+          return { loc: loc!, prt: prt! };
+        }),
+      ),
+    );
+    const [base, parallel] = pair;
+    expect(base.prt.key).not.toBe(parallel.prt.key);
+    expect(base.prt.card_key).toBe(parallel.prt.card_key);
+    expect(base.prt).toMatchObject({ site: "cn", variant: "base" });
+    expect(base.prt).not.toHaveProperty("image_token");
+    expect(parallel.prt).toMatchObject({ site: "cn", variant: "parallel", image_token: "P" });
+    const onCard = await t.run(async (ctx) =>
+      ctx.db.query("printings").withIndex("by_card", (q) => q.eq("card_key", base.prt.card_key)).collect(),
+    );
+    expect(onCard.map((p) => p.key).sort()).toEqual([base.prt.key, parallel.prt.key].sort());
+  });
+
   test("stores a product's release_date_source", async () => {
     const t = convexTest(schema, modules);
     const files = fixtureFiles();
