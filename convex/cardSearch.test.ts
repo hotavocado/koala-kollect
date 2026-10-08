@@ -129,9 +129,18 @@ describe("search", () => {
     expect(await t.query(api.cardSearch.search, { q: "OP99" })).toEqual({ kind: "name", hits: [] });
   });
 
-  test("one letter is too short for a name search", async () => {
+  test("one character finds only a card with that whole name", async () => {
     const t = await seed();
-    expect(await t.query(api.cardSearch.search, { q: "z" })).toEqual({ kind: "empty", hits: [] });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", card("card_soru", "OP05-017"));
+      await ctx.db.insert("card_observations", observation("card_soru", "jp", "剃"));
+      await ctx.db.insert("cards", card("card_z", "OP03-075"));
+      await ctx.db.insert("card_observations", observation("card_z", "en", "Z"));
+    });
+    // "z" prefixes Zoro too, but only the card named Z comes back.
+    expect(numbers(await t.query(api.cardSearch.search, { q: "z" }))).toEqual(["OP03-075"]);
+    expect(numbers(await t.query(api.cardSearch.search, { q: "剃" }))).toEqual(["OP05-017"]);
+    expect(await t.query(api.cardSearch.search, { q: "q" })).toEqual({ kind: "name", hits: [] });
   });
 
   test("results stop at the limit", async () => {

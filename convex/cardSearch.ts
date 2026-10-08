@@ -37,16 +37,19 @@ export const search = query({
         return { kind: "number", hits: await hits(ctx, cards, new Map()) };
       }
     }
-    if (text.length < MIN_NAME_QUERY) return { kind: "empty", hits: [] };
-
     const matches = await ctx.db
       .query("card_observations")
       .withSearchIndex("search_name", (s) => s.search("name", text))
       .take(NAME_SCAN);
+    // Below the minimum only a whole-name match counts: "z" should not list
+    // every Zoro, but 剃, 凶 and the card named Z are real one-character names.
+    const short = text.length < MIN_NAME_QUERY;
+    const lower = text.toLowerCase();
     // Relevance order, one row per card. An errata'd observation still names
     // its card, so superseded rows count too.
     const matched = new Map<string, string>();
     for (const o of matches) {
+      if (short && o.name.toLowerCase() !== lower) continue;
       if (!matched.has(o.card_key)) matched.set(o.card_key, o.name);
       if (matched.size === SEARCH_LIMIT) break;
     }

@@ -54,5 +54,6 @@ export function parseCardNumber(raw: string): NumberQuery | null {
 // stopped short.
 export const SEARCH_LIMIT = 20;
 
-// The shortest name query worth sending: one letter matches too much to rank.
+// The shortest name query that lists by match. Shorter, one letter matches too
+// much to rank, so only a card whose whole name is that character comes back.
 export const MIN_NAME_QUERY = 2;
