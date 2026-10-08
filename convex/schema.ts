@@ -16,6 +16,10 @@ const site = v.union(
   v.literal("tc"),
   v.literal("cn"),
 );
+// Where a printing or its locator was read: an official site, or tcgcsv for
+// DON printings (no official site lists DON). The contract refuses tcgcsv on
+// anything but a DON printing; products and observations keep `site`.
+const printingSite = v.union(site, v.literal("tcgcsv"));
 const lang = v.union(v.literal("en"), v.literal("ja"), v.literal("zh-Hant"), v.literal("zh-Hans"));
 const region = v.union(v.literal("en"), v.literal("asia"), v.literal("jp"), v.literal("cn"));
 const color = v.union(
@@ -58,13 +62,15 @@ export default defineSchema({
   // Rules identity. Synthetic key. The natural key is number for numbered cards
   // and don_design for DON cards (each DON design is its own card; normal and
   // gold of one design are printings of it). Facts are copied from the jp
-  // observation, JP being the authority.
+  // observation, JP being the authority; DON facts come from tcgcsv.
   cards: defineTable({
     key: v.string(), // card_xxxxxxxxxxxx
     number: v.optional(v.string()), // OP01-001, P-117
     don_design: v.optional(v.string()), // DON only: {first product code}:{art slug}
     ...cardFacts,
-    facts_site: site,
+    // tcgcsv on DON cards only: no official site lists them. The contract's
+    // schema enforces the DON-only rule; this mirror only admits the value.
+    facts_site: v.union(site, v.literal("tcgcsv")),
     first_seen_at: v.string(),
   })
     .index("by_key", ["key"])
@@ -98,7 +104,7 @@ export default defineSchema({
   printings: defineTable({
     key: v.string(), // prt_xxxxxxxxxxxx
     card_key: v.string(),
-    site,
+    site: printingSite,
     rarity: v.string(),
     variant: v.union(
       v.literal("base"),
@@ -124,8 +130,8 @@ export default defineSchema({
   printing_locators: defineTable({
     key: v.string(), // {site}:{image_id}
     printing_key: v.string(),
-    site,
-    image_id: v.string(), // OP14-108_p3, P-001_p5, ..._r1; cn: numeric
+    site: printingSite,
+    image_id: v.string(), // OP14-108_p3, P-001_p5, ..._r1; cn and tcgcsv: numeric
     suffix_family: v.optional(v.union(v.literal("p"), v.literal("r"))),
     suffix_n: v.optional(v.number()),
     first_seen_at: v.string(),

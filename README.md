@@ -8,8 +8,8 @@ The card data lives in [koala-kollect-data](https://github.com/hotavocado/koala-
 This app mirrors it into Convex (`convex/schema.ts`), with field names matching
 the data repo's `schema/v1.schema.json`.
 
-**Status:** app scaffold. The home page renders; the card pages come once the
-data repo has cards to sync.
+**Status:** app scaffold and data sync. The home page renders; the card pages
+come once the data repo has cards to sync.
 
 ## Develop
 
@@ -17,8 +17,21 @@ data repo has cards to sync.
 npm install
 npm run dev            # http://localhost:3000
 npx convex dev         # optional: creates a Convex deployment and writes NEXT_PUBLIC_CONVEX_URL
-npm run lint && npm run typecheck && npm run build
+npm run lint && npm run typecheck && npm test && npm run build
 ```
+
+## Card data sync
+
+`convex/dataSync.ts` copies the data repo into Convex once a day (`convex/crons.ts`).
+It checks every file against the data repo's `manifest.json` (sha256 and row
+count) before writing anything. A mismatch is recorded in the `data_syncs` table
+and nothing is written. Records are upserted by key and never deleted. To run it
+by hand: `npx convex run dataSync:run '{"force": true}'`.
+
+It reads `main`'s commit from git's ref advertisement
+(`https://github.com/<repo>.git/info/refs?service=git-upload-pack`), not from
+GitHub's REST API. The REST API's unauthenticated limit is per IP, and it was
+already used up on Convex's shared egress address (HTTP 403, 2026-10-08).
 
 Stack: Next.js (App Router), Convex, Tailwind. The design system (colour tokens,
 type scale, radius, shadows) is copied from direct-hire: `styles/colors.scss`,
