@@ -128,7 +128,11 @@ describe("dataSync.run", () => {
       const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
 
       expect(r.detail).toMatch(/; 1 printing image not proxied \(tcgcsv 1\): prt_00000000d0d1$/);
-      expect((await syncs(t))[0]).toMatchObject({ unproxied_images: 1, unproxied_image_keys: ["prt_00000000d0d1"] });
+      expect((await syncs(t))[0]).toMatchObject({
+        unproxied_images: 1,
+        unproxied_image_keys: ["prt_00000000d0d1"],
+        unproxied_image_sites: [{ site: "tcgcsv", count: 1 }],
+      });
     });
 
     test("an official printing outside the file rule is counted under its site", async () => {
@@ -145,7 +149,14 @@ describe("dataSync.run", () => {
       expect(r.status).toBe("ok");
       const keys = [prt.key, "prt_00000000d0d1"].sort();
       expect(r.detail).toMatch(new RegExp(`; 2 printing images not proxied \\(en 1, tcgcsv 1\\): ${keys.join(", ")}$`));
-      expect((await syncs(t))[0]).toMatchObject({ unproxied_images: 2, unproxied_image_keys: keys });
+      expect((await syncs(t))[0]).toMatchObject({
+        unproxied_images: 2,
+        unproxied_image_keys: keys,
+        unproxied_image_sites: [
+          { site: "en", count: 1 },
+          { site: "tcgcsv", count: 1 },
+        ],
+      });
     });
 
     test("none refused: the count is 0 and no keys are stored", async () => {
@@ -162,6 +173,7 @@ describe("dataSync.run", () => {
       const [row] = await syncs(t);
       expect(row.unproxied_images).toBe(0);
       expect(row).not.toHaveProperty("unproxied_image_keys");
+      expect(row).not.toHaveProperty("unproxied_image_sites");
     });
 
     test("lists at most 50 keys and still counts them all", async () => {
@@ -181,6 +193,10 @@ describe("dataSync.run", () => {
       const [row] = await syncs(t);
       expect(row.unproxied_images).toBe(61);
       expect(row.unproxied_image_keys).toHaveLength(50);
+      expect(row.unproxied_image_sites).toEqual([
+        { site: "en", count: 60 },
+        { site: "tcgcsv", count: 1 },
+      ]);
       expect(r.detail).toMatch(/; 61 printing images not proxied \(en 60, tcgcsv 1\): .+, and 11 more$/);
     });
   });
