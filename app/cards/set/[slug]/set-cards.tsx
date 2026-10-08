@@ -2,8 +2,9 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { BrowseCard } from "@/convex/cards";
 import { CardTile } from "../../card-tile";
-import { Notice, SET_KIND_HEADING } from "../../ui";
+import { Notice, SET_KIND_LABEL } from "../../ui";
 
 // Same guard as the index: the Convex hooks throw without a deployment.
 export function SetCardsView({ slug }: { slug: string }) {
@@ -24,7 +25,8 @@ function ConnectedSet({ slug }: { slug: string }) {
     return <Notice title="Set not found">There is no set at this address in the database.</Notice>;
   }
 
-  const { set, cards } = result;
+  const { set, cards, fromOtherSets } = result;
+  const total = cards.length + fromOtherSets.length;
   return (
     <>
       <h1 className="text-3xl font-semibold">{set.title}</h1>
@@ -35,16 +37,31 @@ function ConnectedSet({ slug }: { slug: string }) {
           </span>
         )}
         <span>
-          {SET_KIND_HEADING[set.kind]} · {cards.length} card{cards.length === 1 ? "" : "s"}
+          {SET_KIND_LABEL[set.kind]} · {total} card{total === 1 ? "" : "s"}
         </span>
       </p>
-      <ul className="mt-6 grid grid-cols-2 gap-4 xs:grid-cols-4 lg:grid-cols-6">
-        {cards.map((card) => (
-          <li key={card.key}>
-            <CardTile card={card} />
-          </li>
-        ))}
-      </ul>
+      <CardGrid cards={cards} />
+      {fromOtherSets.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">From other sets</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cards first printed elsewhere that this set also includes, such as SP cards and reprints.
+          </p>
+          <CardGrid cards={fromOtherSets} />
+        </section>
+      )}
     </>
+  );
+}
+
+function CardGrid({ cards }: { cards: BrowseCard[] }) {
+  return (
+    <ul className="mt-6 grid grid-cols-2 gap-4 xs:grid-cols-4 lg:grid-cols-6">
+      {cards.map((card) => (
+        <li key={card.key}>
+          <CardTile card={card} />
+        </li>
+      ))}
+    </ul>
   );
 }

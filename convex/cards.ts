@@ -127,9 +127,20 @@ export const sets = query({
 
 // One set's cards in card-number order. The biggest set (promotion cards
 // across four sites) reads about ten thousand documents, inside the limit.
+// The card-number prefixes a set prints under its own code: OP-10 prints
+// OP10-xxx, and en's combined OP14-EB04 prints both OP14-xxx and EB04-xxx.
+// Anything else listed under the set (SP and reprint cards) comes from another set.
+export function ownPrefixes(code: string | null): string[] {
+  if (code === null) return [];
+  return /^[A-Z]+-\d+$/.test(code) ? [code.replace("-", "")] : code.split("-");
+}
+
 export const setCards = query({
   args: { slug: v.string() },
-  handler: async (ctx, { slug }): Promise<{ set: CardSetRow; cards: BrowseCard[] } | null> => {
+  handler: async (
+    ctx,
+    { slug },
+  ): Promise<{ set: CardSetRow; cards: BrowseCard[]; fromOtherSets: BrowseCard[] } | null> => {
     const set = await ctx.db
       .query("card_sets")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
@@ -171,7 +182,15 @@ export const setCards = query({
         (a.number ?? a.donDesign ?? "").localeCompare(b.number ?? b.donDesign ?? "", "en", { numeric: true }) ||
         a.key.localeCompare(b.key),
     );
-    return { set: setRow(set), cards: rows };
+    // A set with no code (the promotion buckets) has no own prefix, so all its
+    // cards stay in the main list. So does a set made mostly of other sets'
+    // cards (PRB-01 prints one card of its own and reprints 110): splitting it
+    // would leave a near-empty main list.
+    const own = ownPrefixes(set.code ?? null);
+    const isOwn = (c: BrowseCard) => own.length === 0 || own.includes(c.number?.split("-")[0] ?? "");
+    const ownCards = rows.filter(isOwn);
+    if (ownCards.length * 2 < rows.length) return { set: setRow(set), cards: rows, fromOtherSets: [] };
+    return { set: setRow(set), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)) };
   },
 });
 

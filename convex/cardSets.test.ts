@@ -2,6 +2,7 @@
 import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
+import { ownPrefixes } from "./cards";
 import schema from "./schema";
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
@@ -94,6 +95,7 @@ test("rebuild counts distinct cards per set and lists them by number", async () 
 
   const op01 = await t.query(api.cards.setCards, { slug: "op-01" });
   expect(op01?.cards.map((c) => c.number)).toEqual(["OP01-009", "OP01-010"]);
+  expect(op01?.fromOtherSets).toEqual([]);
   expect(op01?.cards.find((c) => c.number === "OP01-010")?.printings).toBe(2);
   expect(await t.query(api.cards.setCards, { slug: "nope" })).toBeNull();
 });
@@ -110,4 +112,52 @@ test("rebuild prunes a set whose products are gone", async () => {
   });
   expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 1, pruned: 1 });
   expect((await t.query(api.cards.sets, {})).map((s) => s.slug)).toEqual(["op-01"]);
+});
+
+test("a set's own numbers lead; cards from other sets follow", async () => {
+  const t = await seed();
+  await t.run(async (ctx) => {
+    // An SP printing of the promo card, listed under OP-01.
+    await ctx.db.insert("printings", printing("prt_c_sp", "card_c", "jp"));
+    await ctx.db.insert("printing_products", link("prt_c_sp", "jp:OP-01"));
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  const op01 = await t.query(api.cards.setCards, { slug: "op-01" });
+  expect(op01?.cards.map((c) => c.number)).toEqual(["OP01-009", "OP01-010"]);
+  expect(op01?.fromOtherSets.map((c) => c.number)).toEqual(["P-001"]);
+  // The promotion bucket has no code, so nothing in it is "from another set".
+  const promo = await t.query(api.cards.setCards, { slug: "promo" });
+  expect(promo?.cards.map((c) => c.number)).toEqual(["P-001"]);
+  expect(promo?.fromOtherSets).toEqual([]);
+});
+
+test("a set made mostly of other sets' cards stays one list", async () => {
+  const t = await seed();
+  await t.run(async (ctx) => {
+    // Two foreign cards against OP-01's two own: half own still splits.
+    await ctx.db.insert("printings", printing("prt_c_sp", "card_c", "jp"));
+    await ctx.db.insert("printing_products", link("prt_c_sp", "jp:OP-01"));
+    await ctx.db.insert("cards", card("card_d", "ST01-001"));
+    await ctx.db.insert("printings", printing("prt_d", "card_d", "jp"));
+    await ctx.db.insert("printing_products", link("prt_d", "jp:OP-01"));
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  expect((await t.query(api.cards.setCards, { slug: "op-01" }))?.fromOtherSets).toHaveLength(2);
+
+  // A third foreign card makes own cards the minority: one list, number order.
+  await t.run(async (ctx) => {
+    await ctx.db.insert("cards", card("card_e", "ST02-001"));
+    await ctx.db.insert("printings", printing("prt_e", "card_e", "jp"));
+    await ctx.db.insert("printing_products", link("prt_e", "jp:OP-01"));
+  });
+  const op01 = await t.query(api.cards.setCards, { slug: "op-01" });
+  expect(op01?.cards.map((c) => c.number)).toEqual(["OP01-009", "OP01-010", "P-001", "ST01-001", "ST02-001"]);
+  expect(op01?.fromOtherSets).toEqual([]);
+});
+
+test("own prefixes", () => {
+  expect(ownPrefixes("OP-10")).toEqual(["OP10"]);
+  expect(ownPrefixes("PRB-01")).toEqual(["PRB01"]);
+  expect(ownPrefixes("OP14-EB04")).toEqual(["OP14", "EB04"]);
+  expect(ownPrefixes(null)).toEqual([]);
 });
