@@ -7,7 +7,9 @@ import schema from "./schema";
 import { type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
 // fixtures/contract-valid.jsonl is koala-kollect-data's examples/valid.jsonl,
-// copied at 9729b10 (data PR #10). It is the contract's own valid example of
+// copied at 9729b10 (data PR #10), with the distribution example edited to the
+// promo-origin shape (tier, dates and quantity on the claim, not the pack)
+// ahead of the data PR that makes that change. It is the contract's own valid example of
 // every record type, so syncing it end to end also checks that
 // convex/schema.ts still accepts what the contract allows. Refresh the copy
 // when the contract changes.
@@ -286,6 +288,21 @@ describe("dataSync.run", () => {
     const stale = JSON.parse(files[path].lines[0]) as Rec;
     change(stale);
     files[path].lines[0] = JSON.stringify(stale);
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+    expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
+  });
+
+  test("a distribution still carrying a claim's tier fails the sync", async () => {
+    // Tier, dates and quantity moved onto the claim. Data in the old shape is
+    // a mismatch to see, not a field to drop quietly.
+    const t = convexTest(schema, modules);
+    const files = fixtureFiles();
+    const distPath = Object.keys(files).find((p) => files[p].type === "distribution")!;
+    const old = JSON.parse(files[distPath].lines[0]) as Rec;
+    old.tier = "participant";
+    files[distPath].lines[0] = JSON.stringify(old);
     serve({ [COMMIT_A]: await repoAt(files) });
 
     expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");

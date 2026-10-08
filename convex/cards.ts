@@ -267,14 +267,16 @@ export type CardClaim = {
   sourceUrl: string;
   quote: string;
   confidence: Doc<"printing_distributions">["confidence"];
+  // What this source page says; another claim on the same pack may differ.
+  tier: Doc<"printing_distributions">["tier"] | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  quantityNote: string | null;
   distribution: {
     name: string;
     nameNative: string | null;
     kind: Doc<"distributions">["kind"];
     region: Doc<"distributions">["region"];
-    tier: Doc<"distributions">["tier"] | null;
-    startsOn: string | null;
-    endsOn: string | null;
   } | null;
 };
 
@@ -381,15 +383,16 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
         sourceUrl: e.source_url,
         quote: e.quote,
         confidence: e.confidence,
+        tier: e.tier ?? null,
+        startsOn: e.starts_on ?? null,
+        endsOn: e.ends_on ?? null,
+        quantityNote: e.quantity_note ?? null,
         distribution: d
           ? {
               name: d.name,
               nameNative: d.name_native ?? null,
               kind: d.kind,
               region: d.region,
-              tier: d.tier ?? null,
-              startsOn: d.starts_on ?? null,
-              endsOn: d.ends_on ?? null,
             }
           : null,
       };

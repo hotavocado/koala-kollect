@@ -186,6 +186,8 @@ export default defineSchema({
     .index("by_printing", ["printing_key"])
     .index("by_product", ["product_key"]),
 
+  // The pack or handout itself: what it is and in which region. When, which
+  // tier and how many are on each printing_distributions claim.
   distributions: defineTable({
     key: v.string(), // dist_xxxxxxxxxxxx
     region,
@@ -207,19 +209,6 @@ export default defineSchema({
     ),
     name: v.string(),
     name_native: v.optional(v.string()),
-    starts_on: v.optional(v.string()),
-    ends_on: v.optional(v.string()),
-    tier: v.optional(
-      v.union(
-        v.literal("participant"),
-        v.literal("winner"),
-        v.literal("finalist"),
-        v.literal("top_cut"),
-        v.literal("judge"),
-        v.literal("all"),
-      ),
-    ),
-    quantity_note: v.optional(v.string()),
     source_url: v.optional(v.string()),
   })
     .index("by_key", ["key"])
@@ -243,6 +232,22 @@ export default defineSchema({
     quote: v.string(),
     confidence,
     observed_at: v.string(),
+    // What this source page says about the handout. They live on the claim,
+    // not the distribution, because two pages can disagree on them.
+    // Dates may be YYYY or YYYY-MM.
+    starts_on: v.optional(v.string()),
+    ends_on: v.optional(v.string()),
+    tier: v.optional(
+      v.union(
+        v.literal("participant"),
+        v.literal("winner"),
+        v.literal("finalist"),
+        v.literal("top_cut"),
+        v.literal("judge"),
+        v.literal("all"),
+      ),
+    ),
+    quantity_note: v.optional(v.string()),
   })
     .index("by_key", ["key"])
     .index("by_printing", ["printing_key"])

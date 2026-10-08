@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
 import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { cardLabel, ColorDots, Notice, releaseLabel } from "../ui";
+import { cardLabel, ColorDots, handoutWhen, Notice, releaseLabel } from "../ui";
 
 const SITE_LABEL: Record<CardRegion["site"], string> = {
   en: "English",
@@ -39,7 +39,42 @@ const SOURCE_LABEL: Record<CardClaim["source"], string> = {
 const CONFIDENCE_LABEL: Record<CardClaim["confidence"], string> = {
   authoritative: "Official",
   corroborated: "Corroborated",
-  inferred: "Inferred",
+  inferred: "Inferred, not yet confirmed",
+};
+
+type Distribution = NonNullable<CardClaim["distribution"]>;
+
+const KIND_LABEL: Record<Distribution["kind"], string> = {
+  promo_pack: "Promo pack",
+  tournament_prize: "Tournament prize",
+  participation: "Participation prize",
+  event_pack: "Event pack",
+  meetup: "Meetup",
+  pre_release: "Pre-release",
+  magazine_insert: "Magazine insert",
+  retail_tieup: "Retail tie-in",
+  bundle: "Bundle",
+  movie: "Movie handout",
+  championship: "Championship",
+  store_tournament: "Store tournament",
+  online: "Online",
+  other: "Other",
+};
+
+const REGION_LABEL: Record<Distribution["region"], string> = {
+  en: "English region",
+  asia: "Asia",
+  jp: "Japan",
+  cn: "China",
+};
+
+const TIER_LABEL: Record<NonNullable<CardClaim["tier"]>, string> = {
+  participant: "For participants",
+  winner: "For winners",
+  finalist: "For finalists",
+  top_cut: "For the top cut",
+  judge: "For judges",
+  all: "For everyone",
 };
 
 // Same guard as the browse page: the Convex hooks throw without a deployment.
@@ -238,25 +273,26 @@ function ListingLine({ listing: l }: { listing: CardListing }) {
 
 function ClaimLine({ claim: c }: { claim: CardClaim }) {
   const d = c.distribution;
-  const when = d ? [d.startsOn, d.endsOn].filter(Boolean).join(" to ") : "";
+  const facts = [
+    d && KIND_LABEL[d.kind],
+    d && REGION_LABEL[d.region],
+    c.tier && TIER_LABEL[c.tier],
+    handoutWhen(c.startsOn, c.endsOn),
+  ].filter(Boolean);
+  const inferred = c.confidence === "inferred";
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-medium">
-        {d ? d.name : "A source not yet in the database"}
-        {d?.tier && <span className="font-normal text-muted-foreground"> · {capitalize(d.tier)}</span>}
-        {when && <span className="font-normal text-muted-foreground"> · {when}</span>}
-      </span>
+    // An inferred claim is set apart, so it never reads as settled.
+    <div
+      className={`flex flex-col gap-0.5 ${inferred ? "border-l-2 border-dashed border-muted-foreground/50 pl-2" : ""}`}
+    >
+      <span className="font-medium">{d ? d.name : "A source not yet in the database"}</span>
+      {facts.length > 0 && <span className="text-muted-foreground">{facts.join(" · ")}</span>}
+      {c.quantityNote && <span className="text-muted-foreground">{c.quantityNote}</span>}
       <span className="break-words">“{c.quote}”</span>
       <span className="text-xs text-muted-foreground">
-        {CONFIDENCE_LABEL[c.confidence]} ·{" "}
-        <a
-          href={c.sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="underline underline-offset-4 hover:text-foreground"
-        >
-          {SOURCE_LABEL[c.source]}
-        </a>
+        <span className={inferred ? "font-medium text-foreground" : undefined}>{CONFIDENCE_LABEL[c.confidence]}</span>
+        {" · "}
+        <OfficialLink href={c.sourceUrl}>{SOURCE_LABEL[c.source]}</OfficialLink>
       </span>
     </div>
   );

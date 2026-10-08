@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cardLabel, releaseLabel } from "./ui";
+import { cardLabel, handoutWhen, partialDate, releaseLabel } from "./ui";
 
 describe("cardLabel", () => {
   const base = { name: null, number: null, donDesign: null };
@@ -41,5 +41,25 @@ describe("releaseLabel", () => {
 
   test("no date reads as nothing", () => {
     expect(releaseLabel({ releaseDate: null, releaseSite: null }, "month")).toBeNull();
+  });
+});
+
+describe("handoutWhen", () => {
+  test("a date to the year or month stays at that precision", () => {
+    expect(partialDate("2025", "en-US")).toBe("2025");
+    expect(partialDate("2025-03", "en-US")).toBe("Mar 2025");
+    expect(partialDate("2025-03-04", "en-US")).toBe("Mar 4, 2025");
+  });
+
+  test("a range reads start to end, and one end alone still reads", () => {
+    expect(handoutWhen("2025-01", "2025-03", "en-US")).toBe("Jan 2025 to Mar 2025");
+    expect(handoutWhen("2025-01", "2025-01", "en-US")).toBe("Jan 2025");
+    expect(handoutWhen("2025-01-10", null, "en-US")).toBe("Jan 10, 2025");
+    expect(handoutWhen(null, "2025-03", "en-US")).toBe("Until Mar 2025");
+    expect(handoutWhen(null, null)).toBeNull();
+  });
+
+  test("a value outside the contract's formats is shown as written", () => {
+    expect(partialDate("spring 2025")).toBe("spring 2025");
   });
 });
