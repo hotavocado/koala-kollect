@@ -131,6 +131,23 @@ test("a set's own numbers lead; cards from other sets follow", async () => {
   expect(promo?.fromOtherSets).toEqual([]);
 });
 
+test("a card from another set shows the printing this set lists, not its base art", async () => {
+  const t = await seed();
+  await t.run(async (ctx) => {
+    // card_c's base art is prt_c_en (promo bucket); OP-01 lists only its parallel.
+    await ctx.db.insert("printings", { ...printing("prt_c_sp", "card_c", "jp"), variant: "parallel" as const });
+    await ctx.db.insert("printing_products", link("prt_c_sp", "jp:OP-01"));
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  const op01 = await t.query(api.cards.setCards, { slug: "op-01" });
+  expect(op01?.fromOtherSets.map((c) => c.imageUrl)).toEqual(["https://example.test/prt_c_sp.png"]);
+  // The set's own card still shows its base printing.
+  expect(op01?.cards.find((c) => c.number === "OP01-010")?.imageUrl).toBe("https://example.test/prt_a_en.png");
+  // Outside a set, the card keeps its base art.
+  const promo = await t.query(api.cards.setCards, { slug: "promo" });
+  expect(promo?.cards.map((c) => c.imageUrl)).toEqual(["https://example.test/prt_c_en.png"]);
+});
+
 test("a set made mostly of other sets' cards stays one list", async () => {
   const t = await seed();
   await t.run(async (ctx) => {

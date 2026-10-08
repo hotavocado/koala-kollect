@@ -80,7 +80,13 @@ export const browse = query({
 });
 
 // One tile's worth of a card: the shown name, the best image, the printing count.
-async function browseRow(ctx: QueryCtx, card: Doc<"cards">): Promise<BrowseCard> {
+// imageFrom narrows the tile image to the printings a set lists, so a reprint
+// or parallel shows the art that set carries rather than the card's base art.
+async function browseRow(
+  ctx: QueryCtx,
+  card: Doc<"cards">,
+  imageFrom?: Doc<"printings">[],
+): Promise<BrowseCard> {
   const [observations, printings] = await Promise.all([
     ctx.db
       .query("card_observations")
@@ -98,7 +104,7 @@ async function browseRow(ctx: QueryCtx, card: Doc<"cards">): Promise<BrowseCard>
     category: card.category,
     colors: card.colors,
     name: pickName(observations),
-    imageUrl: rankPrintings(printings)[0]?.image_url ?? null,
+    imageUrl: rankPrintings(imageFrom?.length ? imageFrom : printings)[0]?.image_url ?? null,
     printings: printings.length,
   };
 }
@@ -147,7 +153,7 @@ export const setCards = query({
       .unique();
     if (!set) return null;
 
-    const cardKeys = new Set<string>();
+    const linked = new Map<string, Doc<"printings">[]>();
     for (const productKey of set.product_keys) {
       const links = await ctx.db
         .query("printing_products")
@@ -163,18 +169,18 @@ export const setCards = query({
               .unique(),
           ),
       );
-      for (const p of printings) if (p) cardKeys.add(p.card_key);
+      for (const p of printings) if (p) linked.set(p.card_key, [...(linked.get(p.card_key) ?? []), p]);
     }
 
     const cards = await Promise.all(
-      [...cardKeys].map((key) =>
+      [...linked.keys()].map((key) =>
         ctx.db
           .query("cards")
           .withIndex("by_key", (q) => q.eq("key", key))
           .unique(),
       ),
     );
-    const rows = await Promise.all(cards.flatMap((c) => (c ? [browseRow(ctx, c)] : [])));
+    const rows = await Promise.all(cards.flatMap((c) => (c ? [browseRow(ctx, c, linked.get(c.key))] : [])));
     // Numbered cards by number (numeric, so -9 before -10), then DON by design.
     rows.sort(
       (a, b) =>
