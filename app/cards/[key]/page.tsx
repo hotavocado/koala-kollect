@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CardDetailView } from "./card-detail";
+import { ImageCredit } from "../ui";
 
 export const metadata: Metadata = {
   title: "Card · Koala Kollect",
@@ -29,6 +30,7 @@ export default function CardPage({ params }: { params: Promise<{ key: string }> 
           ))}
         </Suspense>
       </main>
+      <ImageCredit />
     </div>
   );
 }

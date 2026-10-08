@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
+import { CardImage } from "../card-image";
 import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
 import { cardLabel, ColorDots, Notice } from "../ui";
 
@@ -84,7 +85,12 @@ function Detail({ card }: { card: CardDetail }) {
   return (
     <article className="flex flex-col gap-10">
       <section className="grid gap-6 xs:grid-cols-[minmax(0,240px)_1fr] xs:items-start">
-        <CardFace number={card.number} label={label} />
+        <CardImage
+          imageUrl={card.imageUrl}
+          alt={label}
+          className="mx-auto aspect-[63/88] w-full max-w-[240px] rounded-md bg-layer-2 object-cover"
+          fallback={<CardFace number={card.number} label={label} />}
+        />
         <div className="flex min-w-0 flex-col gap-4">
           <div>
             <h1 className="text-3xl font-semibold">{label}</h1>
@@ -254,9 +260,7 @@ function ClaimLine({ claim: c }: { claim: CardClaim }) {
   );
 }
 
-// A text face, not the image: the official image hosts send
-// Cross-Origin-Resource-Policy: same-site, so every browser refuses to load
-// them here. The image URLs stay in the data as locators.
+// The text face, when the card has no official image or it fails to load.
 function CardFace({ number, label }: { number: string | null; label: string }) {
   return (
     <div className="mx-auto flex aspect-[63/88] w-full max-w-[240px] flex-col items-center justify-center gap-2 rounded-md bg-layer-2 p-4 text-center">
