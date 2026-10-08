@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SetIndex } from "./set-index";
+import { Suspense } from "react";
+import { CardFinder } from "./card-finder";
 import { ImageCredit } from "./ui";
 
 export const metadata: Metadata = {
   title: "Cards · Koala Kollect",
-  description: "Every One Piece Card Game set, starter deck and promotion in the Koala Kollect database.",
+  description:
+    "Find any One Piece Card Game card by number or name, or browse every set, starter deck and promotion in the Koala Kollect database.",
 };
 
 export default function CardsPage() {
@@ -19,7 +21,10 @@ export default function CardsPage() {
       <main className="container flex-1 pb-12 pt-4">
         <h1 className="text-3xl font-semibold">Cards</h1>
         <div className="mt-6">
-          <SetIndex />
+          {/* CardFinder reads ?q=, so it renders on the client; the box holds its place meanwhile. */}
+          <Suspense fallback={<div className="h-12 rounded-lg border border-input bg-layer-1" />}>
+            <CardFinder />
+          </Suspense>
         </div>
       </main>
       <ImageCredit />
