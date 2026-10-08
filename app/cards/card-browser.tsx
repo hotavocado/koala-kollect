@@ -96,25 +96,30 @@ const COLOR_DOT: Record<BrowseCard["colors"][number], string> = {
 
 function CardTile({ card }: { card: BrowseCard }) {
   const label = card.name ?? (card.category === "don" ? "DON!!" : (card.number ?? "Unnamed card"));
+  // A text face, not the image: the official image hosts send
+  // Cross-Origin-Resource-Policy: same-site, so every browser refuses to load
+  // them here. card.imageUrl stays in the data as the image's locator.
+  const face = (
+    <div className="flex aspect-[63/88] flex-col items-center justify-center gap-1 rounded-md bg-layer-2 p-3 text-center">
+      {card.number && <span className="text-lg font-semibold tracking-tight">{card.number}</span>}
+      <span className="line-clamp-3 text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
   return (
     <div className="flex flex-col gap-2">
-      <div className="relative aspect-[63/88] overflow-hidden rounded-md bg-layer-2">
-        {card.imageUrl ? (
-          // A plain img on purpose: images are the official sites' own URLs,
-          // linked and never re-hosted, and next/image would proxy them.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={card.imageUrl}
-            alt={label}
-            loading="lazy"
-            className="size-full object-cover"
-          />
-        ) : (
-          <span className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-            No image
-          </span>
-        )}
-      </div>
+      {card.officialUrl ? (
+        <a
+          href={card.officialUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${label} on the official card list (opens in a new tab)`}
+          className="rounded-md transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          {face}
+        </a>
+      ) : (
+        face
+      )}
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{label}</p>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

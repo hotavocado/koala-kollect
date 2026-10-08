@@ -36,7 +36,7 @@ function observation(site: "en" | "jp", name: string, superseded_at?: string) {
   };
 }
 
-function printing(key: string, site: "en" | "jp", variant: "base" | "parallel") {
+function printing(key: string, site: "en" | "asia-en" | "jp" | "tc" | "cn", variant: "base" | "parallel") {
   return {
     key,
     card_key: zoro.key,
@@ -77,9 +77,44 @@ describe("cards.browse", () => {
         colors: ["red"],
         name: "Roronoa Zoro",
         imageUrl: "https://example.test/jp/prt_000000000002.png",
+        officialUrl: "https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
         printings: 2,
       },
     ]);
+  });
+
+  test("the official link goes to the best-ranked site with a searchable list", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", zoro);
+      await ctx.db.insert("printings", printing("prt_000000000001", "tc", "base"));
+      await ctx.db.insert("printings", printing("prt_000000000002", "en", "base"));
+    });
+    const res = await t.query(api.cards.browse, { paginationOpts: PAGE });
+    expect(res.page[0].officialUrl).toBe("https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001");
+  });
+
+  test("a card printed only on cn gets no official link, but keeps its image locator", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", zoro);
+      await ctx.db.insert("printings", printing("prt_000000000001", "cn", "base"));
+    });
+    const res = await t.query(api.cards.browse, { paginationOpts: PAGE });
+    expect(res.page[0].officialUrl).toBeNull();
+    expect(res.page[0].imageUrl).toBe("https://example.test/cn/prt_000000000001.png");
+  });
+
+  test("a cn base printing ranks first for the image, but the link skips to a site with a list", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", zoro);
+      await ctx.db.insert("printings", printing("prt_000000000001", "cn", "base"));
+      await ctx.db.insert("printings", printing("prt_000000000002", "asia-en", "parallel"));
+    });
+    const res = await t.query(api.cards.browse, { paginationOpts: PAGE });
+    expect(res.page[0].imageUrl).toBe("https://example.test/cn/prt_000000000001.png");
+    expect(res.page[0].officialUrl).toBe("https://asia-en.onepiece-cardgame.com/cardlist/?freewords=OP01-001");
   });
 
   test("a superseded observation is never the shown name", async () => {
@@ -108,7 +143,7 @@ describe("cards.browse", () => {
       });
     });
     const res = await t.query(api.cards.browse, { paginationOpts: PAGE });
-    expect(res.page[0]).toMatchObject({ category: "don", number: null, name: null });
+    expect(res.page[0]).toMatchObject({ category: "don", number: null, name: null, officialUrl: null });
   });
 });
 

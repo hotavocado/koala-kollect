@@ -17,6 +17,7 @@ export type BrowseCard = {
   colors: Doc<"cards">["colors"];
   name: string | null;
   imageUrl: string | null;
+  officialUrl: string | null;
   printings: number;
 };
 
@@ -29,18 +30,36 @@ function pickName(observations: Doc<"card_observations">[]): string | null {
   return null;
 }
 
-// The card's face on the grid: a base printing if there is one, preferring the
-// same site order as the name so the image and name usually agree.
-function pickImage(printings: Doc<"printings">[]): string | null {
+// Base printings first, then the same site order as the name, so the image
+// and name usually agree.
+function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
   const siteRank = (s: Doc<"printings">["site"]) => {
     const i = (NAME_SITE_ORDER as string[]).indexOf(s);
     return i === -1 ? NAME_SITE_ORDER.length : i;
   };
-  const sorted = [...printings].sort(
+  return [...printings].sort(
     (a, b) =>
       Number(a.variant !== "base") - Number(b.variant !== "base") || siteRank(a.site) - siteRank(b.site),
   );
-  return sorted[0]?.image_url ?? null;
+}
+
+// Official card lists that search by card number through ?freewords=. cn's
+// list is an API with no search page, and tcgcsv only locates DON printings,
+// so neither gets a link.
+const LIST_HOST: Partial<Record<Doc<"printings">["site"], string>> = {
+  en: "en.onepiece-cardgame.com",
+  "asia-en": "asia-en.onepiece-cardgame.com",
+  jp: "www.onepiece-cardgame.com",
+  tc: "asia-tc.onepiece-cardgame.com",
+};
+
+// The official list entry for the card, on the best-ranked site that prints
+// it. The image hosts refuse cross-site loads (Cross-Origin-Resource-Policy:
+// same-site), so this link is how a visitor sees the real card.
+function pickOfficialUrl(number: string | undefined, ranked: Doc<"printings">[]): string | null {
+  if (!number) return null;
+  const host = ranked.map((p) => LIST_HOST[p.site]).find(Boolean);
+  return host ? `https://${host}/cardlist/?freewords=${encodeURIComponent(number)}` : null;
 }
 
 export const browse = query({
@@ -61,13 +80,15 @@ export const browse = query({
             .withIndex("by_card", (q) => q.eq("card_key", card.key))
             .collect(),
         ]);
+        const ranked = rankPrintings(printings);
         return {
           key: card.key,
           number: card.number ?? null,
           category: card.category,
           colors: card.colors,
           name: pickName(observations),
-          imageUrl: pickImage(printings),
+          imageUrl: ranked[0]?.image_url ?? null,
+          officialUrl: pickOfficialUrl(card.number, ranked),
           printings: printings.length,
         };
       }),
