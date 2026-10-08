@@ -18,7 +18,6 @@ export type BrowseCard = {
   colors: Doc<"cards">["colors"];
   name: string | null;
   imageUrl: string | null;
-  officialUrl: string | null;
   printings: number;
 };
 
@@ -60,13 +59,12 @@ const LIST_HOST: Partial<Record<Doc<"printings">["site"], string>> = {
   tc: "asia-tc.onepiece-cardgame.com",
 };
 
-// The official list entry for the card, on the best-ranked site that prints
-// it. The image hosts refuse cross-site loads (Cross-Origin-Resource-Policy:
-// same-site), so this link is how a visitor sees the real card.
-function pickOfficialUrl(number: string | undefined, ranked: Doc<"printings">[]): string | null {
-  if (!number) return null;
-  const host = ranked.map((p) => LIST_HOST[p.site]).find(Boolean);
-  return host ? `https://${host}/cardlist/?freewords=${encodeURIComponent(number)}` : null;
+// The card's entry on one site's official list. The image hosts refuse
+// cross-site loads (Cross-Origin-Resource-Policy: same-site), so these links
+// are how a visitor sees the real card.
+function listUrl(site: Doc<"printings">["site"], number: string | undefined): string | null {
+  const host = LIST_HOST[site];
+  return host && number ? `https://${host}/cardlist/?freewords=${encodeURIComponent(number)}` : null;
 }
 
 export const browse = query({
@@ -87,15 +85,13 @@ export const browse = query({
             .withIndex("by_card", (q) => q.eq("card_key", card.key))
             .collect(),
         ]);
-        const ranked = rankPrintings(printings);
         return {
           key: card.key,
           number: card.number ?? null,
           category: card.category,
           colors: card.colors,
           name: pickName(observations),
-          imageUrl: ranked[0]?.image_url ?? null,
-          officialUrl: pickOfficialUrl(card.number, ranked),
+          imageUrl: rankPrintings(printings)[0]?.image_url ?? null,
           printings: printings.length,
         };
       }),
@@ -183,7 +179,13 @@ export type CardPrinting = {
   claims: CardClaim[];
 };
 
-export type CardRegion = { site: Doc<"printings">["site"]; printings: CardPrinting[] };
+export type CardRegion = {
+  site: Doc<"printings">["site"];
+  // This site's official list entry for the card, or null where the site has
+  // no searchable list (cn, tcgcsv) or the card has no number (DON).
+  listUrl: string | null;
+  printings: CardPrinting[];
+};
 
 export type CardDetail = {
   key: string;
@@ -204,6 +206,8 @@ export type CardDetail = {
     trigger: string | null;
   } | null;
   imageUrl: string | null;
+  // The official list entry on the best-ranked site that prints the card.
+  officialUrl: string | null;
   regions: CardRegion[];
 };
 
@@ -336,10 +340,11 @@ export const detail = query({
     for (const { site, printing } of loaded) {
       const last = regions[regions.length - 1];
       if (last?.site === site) last.printings.push(printing);
-      else regions.push({ site, printings: [printing] });
+      else regions.push({ site, listUrl: listUrl(site, card.number), printings: [printing] });
     }
 
     const obs = pickObservation(observations);
+    const ranked = rankPrintings(printings);
     return {
       key: card.key,
       number: card.number ?? null,
@@ -360,7 +365,8 @@ export const detail = query({
             trigger: obs.trigger ?? null,
           }
         : null,
-      imageUrl: rankPrintings(printings)[0]?.image_url ?? null,
+      imageUrl: ranked[0]?.image_url ?? null,
+      officialUrl: ranked.map((p) => listUrl(p.site, card.number)).find(Boolean) ?? null,
       regions,
     };
   },

@@ -38,7 +38,7 @@ async function seeded() {
   return t;
 }
 
-function printing(key: string, site: "en" | "asia-en" | "jp", variant: "base" | "parallel" | "alt_art") {
+function printing(key: string, site: "en" | "asia-en" | "jp" | "tc" | "cn", variant: "base" | "parallel" | "alt_art") {
   return {
     key,
     card_key: ZORO,
@@ -79,10 +79,12 @@ describe("cards.detail", () => {
         trigger: null,
       },
       imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png",
+      officialUrl: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
     });
     expect(card?.regions).toEqual([
       {
         site: "en",
+        listUrl: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
         printings: [
           {
             key: "prt_000000000001",
@@ -131,10 +133,11 @@ describe("cards.detail", () => {
   test("a DON card reads its gold printing under tcgcsv with an empty provenance string", async () => {
     const t = await seeded();
     const card = await t.query(api.cards.detail, { key: DON });
-    expect(card).toMatchObject({ category: "don", number: null, text: null });
+    expect(card).toMatchObject({ category: "don", number: null, text: null, officialUrl: null });
     expect(card?.regions).toHaveLength(1);
     expect(card?.regions[0]).toMatchObject({
       site: "tcgcsv",
+      listUrl: null,
       printings: [{ key: "prt_00000000d0d1", variant: "gold", sourceText: "", imageIds: ["512345"] }],
     });
   });
@@ -155,6 +158,38 @@ describe("cards.detail", () => {
     ]);
     // The face is a base printing, English first, as on the browse grid.
     expect(card?.imageUrl).toBe("https://example.test/en/prt_00000000000d.png");
+  });
+
+  test("each site with a searchable list links to it; cn does not", async () => {
+    const t = await seeded();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("printings", printing("prt_00000000000a", "tc", "base"));
+      await ctx.db.insert("printings", printing("prt_00000000000b", "cn", "base"));
+      await ctx.db.insert("printings", printing("prt_00000000000c", "jp", "base"));
+    });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    expect(card?.regions.map((r) => [r.site, r.listUrl])).toEqual([
+      ["en", "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
+      ["jp", "https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
+      ["tc", "https://asia-tc.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
+      ["cn", null],
+    ]);
+  });
+
+  test("the card's official link skips a top-ranked cn printing for a site with a list", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      for (const { table, record } of fixtureRecords()) {
+        // Only the card itself: its contract printing would rank above cn's.
+        if (table === "cards") await ctx.db.insert(table, record as never);
+      }
+      await ctx.db.insert("printings", printing("prt_00000000000a", "cn", "base"));
+      await ctx.db.insert("printings", printing("prt_00000000000b", "asia-en", "parallel"));
+    });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    // The face is cn's base printing, but cn has no list to link to.
+    expect(card?.imageUrl).toBe("https://example.test/cn/prt_00000000000a.png");
+    expect(card?.officialUrl).toBe("https://asia-en.onepiece-cardgame.com/cardlist/?freewords=OP01-001");
   });
 
   test("parallels read in image id order, numerically, not by key", async () => {

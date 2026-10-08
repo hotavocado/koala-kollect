@@ -88,7 +88,7 @@ function Detail({ card }: { card: CardDetail }) {
   return (
     <article className="flex flex-col gap-10">
       <section className="grid gap-6 xs:grid-cols-[minmax(0,240px)_1fr] xs:items-start">
-        <CardImage src={card.imageUrl} alt={label} className="mx-auto w-full max-w-[240px]" />
+        <CardFace number={card.number} label={label} />
         <div className="flex min-w-0 flex-col gap-4">
           <div>
             <h1 className="text-3xl font-semibold">{label}</h1>
@@ -96,6 +96,11 @@ function Detail({ card }: { card: CardDetail }) {
               <ColorDots colors={card.colors} />
               <span>{[card.number, capitalize(card.category)].filter(Boolean).join(" · ")}</span>
             </p>
+            {card.officialUrl && (
+              <p className="mt-2 text-sm">
+                <OfficialLink href={card.officialUrl}>See the card on the official card list</OfficialLink>
+              </p>
+            )}
           </div>
 
           {stats.length > 0 && (
@@ -141,14 +146,21 @@ function Detail({ card }: { card: CardDetail }) {
         )}
         {card.regions.map((region) => (
           <div key={region.site} className="flex flex-col gap-3">
-            <h3 className="text-lg font-semibold">
-              {SITE_LABEL[region.site]}{" "}
-              <span className="font-normal text-muted-foreground">{region.printings.length}</span>
-            </h3>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 className="text-lg font-semibold">
+                {SITE_LABEL[region.site]}{" "}
+                <span className="font-normal text-muted-foreground">{region.printings.length}</span>
+              </h3>
+              {region.listUrl && (
+                <OfficialLink href={region.listUrl} className="text-sm">
+                  On this site&apos;s card list
+                </OfficialLink>
+              )}
+            </div>
             <ul className="flex flex-col gap-3">
               {region.printings.map((p) => (
                 <li key={p.key}>
-                  <PrintingRow printing={p} site={region.site} alt={label} />
+                  <PrintingRow printing={p} site={region.site} />
                 </li>
               ))}
             </ul>
@@ -159,10 +171,9 @@ function Detail({ card }: { card: CardDetail }) {
   );
 }
 
-function PrintingRow({ printing: p, site, alt }: { printing: CardPrinting; site: CardRegion["site"]; alt: string }) {
+function PrintingRow({ printing: p, site }: { printing: CardPrinting; site: CardRegion["site"] }) {
   return (
     <div className="flex gap-4 rounded-lg bg-layer-1 p-4">
-      <CardImage src={p.imageUrl} alt={`${alt}, ${VARIANT_LABEL[p.variant]}`} className="w-20 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <p className="text-xs text-muted-foreground">
           {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds].join(" · ")}
@@ -247,20 +258,30 @@ function ClaimLine({ claim: c }: { claim: CardClaim }) {
   );
 }
 
-function CardImage({ src, alt, className }: { src: string | null; alt: string; className?: string }) {
+// A text face, not the image: the official image hosts send
+// Cross-Origin-Resource-Policy: same-site, so every browser refuses to load
+// them here. The image URLs stay in the data as locators.
+function CardFace({ number, label }: { number: string | null; label: string }) {
   return (
-    <div className={`relative aspect-[63/88] overflow-hidden rounded-md bg-layer-2 ${className ?? ""}`}>
-      {src ? (
-        // A plain img on purpose: images are the official sites' own URLs,
-        // linked and never re-hosted, and next/image would proxy them.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} loading="lazy" className="size-full object-cover" />
-      ) : (
-        <span className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-          No image
-        </span>
-      )}
+    <div className="mx-auto flex aspect-[63/88] w-full max-w-[240px] flex-col items-center justify-center gap-2 rounded-md bg-layer-2 p-4 text-center">
+      {number && <span className="text-3xl font-semibold tracking-tight">{number}</span>}
+      <span className="text-sm text-muted-foreground">{label}</span>
     </div>
+  );
+}
+
+function OfficialLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`underline underline-offset-4 hover:text-foreground ${className ?? ""}`}
+    >
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+      <span aria-hidden="true"> ↗</span>
+    </a>
   );
 }
 
