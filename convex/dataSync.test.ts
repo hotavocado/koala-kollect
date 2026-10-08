@@ -7,9 +7,8 @@ import schema from "./schema";
 import { type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
 // fixtures/contract-valid.jsonl is koala-kollect-data's examples/valid.jsonl,
-// copied at 9729b10 (data PR #10), with the distribution example edited to the
-// promo-origin shape (tier, dates and quantity on the claim, not the pack)
-// ahead of the data PR that makes that change. It is the contract's own valid example of
+// copied from the promo-origin data branch at 5a8e6d2 ahead of its merge
+// (tier, dates and quantity on the claim; site on the distribution). It is the contract's own valid example of
 // every record type, so syncing it end to end also checks that
 // convex/schema.ts still accepts what the contract allows. Refresh the copy
 // when the contract changes.
@@ -20,10 +19,12 @@ const COMMIT_B = "b".repeat(40);
 
 type Rec = { key: string } & Record<string, unknown>;
 
-// The contract's layout: one file per type, or per type and site.
+// The contract's layout: one file per type, or per type and site. A
+// distribution carries a site but still lives in one file.
+const ONE_FILE: ReadonlySet<RecordType> = new Set(["card", "distribution", "printing_distribution", "printing_link"]);
 function pathFor(type: RecordType, rec: Rec): string {
   const table = TYPE_TO_TABLE[type];
-  return typeof rec.site === "string" ? `data/${table}/${rec.site}.jsonl` : `data/${table}.jsonl`;
+  return !ONE_FILE.has(type) && typeof rec.site === "string" ? `data/${table}/${rec.site}.jsonl` : `data/${table}.jsonl`;
 }
 
 function fixtureFiles(): Record<string, { type: RecordType; lines: string[] }> {
@@ -303,6 +304,19 @@ describe("dataSync.run", () => {
     const old = JSON.parse(files[distPath].lines[0]) as Rec;
     old.tier = "participant";
     files[distPath].lines[0] = JSON.stringify(old);
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+    expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
+  });
+
+  test("a distribution with no site fails the sync", async () => {
+    const t = convexTest(schema, modules);
+    const files = fixtureFiles();
+    const distPath = Object.keys(files).find((p) => files[p].type === "distribution")!;
+    const noSite = JSON.parse(files[distPath].lines[0]) as Rec;
+    delete noSite.site;
+    files[distPath].lines[0] = JSON.stringify(noSite);
     serve({ [COMMIT_A]: await repoAt(files) });
 
     expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");

@@ -186,10 +186,13 @@ export default defineSchema({
     .index("by_printing", ["printing_key"])
     .index("by_product", ["product_key"]),
 
-  // The pack or handout itself: what it is and in which region. When, which
-  // tier and how many are on each printing_distributions claim.
+  // The pack or handout itself: what it is and in which region. It is minted
+  // from one site's card list, so the same pack name on en and asia-en is two
+  // distributions. When, which tier and how many are on each
+  // printing_distributions claim.
   distributions: defineTable({
     key: v.string(), // dist_xxxxxxxxxxxx
+    site,
     region,
     kind: v.union(
       v.literal("promo_pack"),

@@ -115,7 +115,7 @@ describe("cards.detail", () => {
           tier: "participant",
           startsOn: "2025",
           endsOn: null,
-          quantityNote: "While supplies last, one per player",
+          quantityNote: "(4 types)",
           distribution: {
             name: "Store Tournament Vol.4",
             nameNative: null,
@@ -310,7 +310,7 @@ describe("cards.detail", () => {
     expect(
       p?.claims.map((c) => [c.key, c.distribution?.name, c.tier, c.startsOn, c.endsOn, c.quantityNote]),
     ).toEqual([
-      ["ev_0123456789abcdef", "Store Tournament Vol.4", "participant", "2025", null, "While supplies last, one per player"],
+      ["ev_0123456789abcdef", "Store Tournament Vol.4", "participant", "2025", null, "(4 types)"],
       ["ev_fedcba9876543210", "Store Tournament Vol.4", "top_cut", "2025-03", "2025-05", null],
     ]);
   });
