@@ -9,12 +9,14 @@ const CACHE_OK = "public, max-age=604800, s-maxage=31536000";
 const CACHE_MISS = "public, max-age=3600";
 const NO_STORE = { "Cache-Control": "no-store" };
 
-export async function GET(req: Request, { params }: { params: Promise<{ host: string; file: string }> }) {
+// file is a catch-all: one segment on every host, and for cn's one card a
+// folder deeper (upstreamImageUrl decides which shapes pass).
+export async function GET(req: Request, { params }: { params: Promise<{ host: string; file: string[] }> }) {
   // The CDN keys on the query string, so ?anything would be a fresh upstream
   // fetch past the year-long cache. Our own URLs never carry one.
   if (new URL(req.url).search) return new Response(null, { status: 400, headers: NO_STORE });
   const { host, file } = await params;
-  const upstream = upstreamImageUrl(host, file);
+  const upstream = upstreamImageUrl(host, file.join("/"));
   if (!upstream) return new Response(null, { status: 404 });
 
   let res: Response;
