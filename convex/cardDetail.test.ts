@@ -112,14 +112,15 @@ describe("cards.detail", () => {
           sourceUrl: "https://en.onepiece-cardgame.com/events/2025/store_tournament_vol4.php",
           quote: "Participation Pack 2025 Vol.4 (4 types)",
           confidence: "authoritative",
+          tier: "participant",
+          startsOn: "2025",
+          endsOn: null,
+          quantityNote: "(4 types)",
           distribution: {
             name: "Store Tournament Vol.4",
             nameNative: null,
             kind: "store_tournament",
             region: "en",
-            tier: "participant",
-            startsOn: "2025",
-            endsOn: null,
           },
         },
       ],
@@ -284,6 +285,33 @@ describe("cards.detail", () => {
     expect(p?.claims.map((c) => [c.key, c.confidence, c.distribution?.name ?? null])).toEqual([
       ["ev_0123456789abcdef", "authoritative", "Store Tournament Vol.4"],
       ["ev_0000000000000000", "inferred", null],
+    ]);
+  });
+
+  test("two pages on one pack keep their own tier and dates", async () => {
+    const t = await seeded();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("printing_distributions", {
+        key: "ev_fedcba9876543210",
+        printing_key: "prt_000000000001",
+        distribution_key: "dist_0000000000a1",
+        source: "official_topic",
+        source_url: "https://en.onepiece-cardgame.com/topics/example.php",
+        quote: "Top 4 receive Participation Pack 2025 Vol.4",
+        confidence: "inferred",
+        observed_at: T,
+        tier: "top_cut",
+        starts_on: "2025-03",
+        ends_on: "2025-05",
+      });
+    });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    const p = card?.regions[0].printings.find((x) => x.key === "prt_000000000001");
+    expect(
+      p?.claims.map((c) => [c.key, c.distribution?.name, c.tier, c.startsOn, c.endsOn, c.quantityNote]),
+    ).toEqual([
+      ["ev_0123456789abcdef", "Store Tournament Vol.4", "participant", "2025", null, "(4 types)"],
+      ["ev_fedcba9876543210", "Store Tournament Vol.4", "top_cut", "2025-03", "2025-05", null],
     ]);
   });
 
