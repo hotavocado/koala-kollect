@@ -94,7 +94,6 @@ export default defineSchema({
     effect: v.optional(v.string()),
     trigger: v.optional(v.string()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
     superseded_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])
@@ -124,7 +123,6 @@ export default defineSchema({
     // out of standard), or null where the site prints none.
     block_icon: v.optional(v.union(v.number(), v.literal("X"), v.null())),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_card", ["card_key"])
@@ -140,7 +138,6 @@ export default defineSchema({
     suffix_family: v.optional(v.union(v.literal("p"), v.literal("r"))),
     suffix_n: v.optional(v.number()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_printing", ["printing_key"]),
@@ -166,7 +163,6 @@ export default defineSchema({
     release_date_source: v.optional(v.string()), // absolute URL of the page the date was read from
     product_url: v.optional(v.string()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_site", ["site"]),
@@ -178,7 +174,6 @@ export default defineSchema({
     printing_key: v.string(),
     product_key: v.string(),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
     removed_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])

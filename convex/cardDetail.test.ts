@@ -48,7 +48,6 @@ function printing(key: string, site: "en" | "asia-en" | "jp" | "tc" | "cn", vari
     image_url: `https://example.test/${site}/${key}.png`,
     source_text: `${site} source ${key}`,
     first_seen_at: T,
-    last_seen_at: T,
   };
 }
 
@@ -214,7 +213,6 @@ describe("cards.detail", () => {
           site: "jp",
           image_id: imageId,
           first_seen_at: T,
-          last_seen_at: T,
         });
       }
     });
@@ -236,14 +234,12 @@ describe("cards.detail", () => {
         name: "ROMANCE DAWN",
         kind: "booster",
         first_seen_at: T,
-        last_seen_at: T,
       });
       await ctx.db.insert("printing_products", {
         key: "prt_000000000001@en:569900",
         printing_key: "prt_000000000001",
         product_key: "en:569900",
         first_seen_at: T,
-        last_seen_at: T,
       });
       // A dated listing with a lower key: it leads the undated one only
       // because dated listings sort before undated ones.
@@ -256,14 +252,12 @@ describe("cards.detail", () => {
         kind: "starter",
         release_date: "2022-12-02",
         first_seen_at: T,
-        last_seen_at: T,
       });
       await ctx.db.insert("printing_products", {
         key: "prt_000000000001@en:569000",
         printing_key: "prt_000000000001",
         product_key: "en:569000",
         first_seen_at: T,
-        last_seen_at: T,
       });
       // A weaker claim whose distribution was never synced.
       await ctx.db.insert("printing_distributions", {
