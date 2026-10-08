@@ -163,6 +163,7 @@ export default defineSchema({
       v.literal("other"),
     ),
     release_date: v.optional(v.string()), // YYYY, YYYY-MM or YYYY-MM-DD
+    release_date_source: v.optional(v.string()), // absolute URL of the page the date was read from
     product_url: v.optional(v.string()),
     first_seen_at: v.string(),
     last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
