@@ -10,7 +10,7 @@ the data repo's `schema/v1.schema.json`.
 
 **Status:** schema only. The Next.js + Convex scaffold is next.
 
-**Licence:** not chosen yet. Until a LICENSE file lands, all rights are reserved.
+**Licence:** the code is MIT ([LICENSE](LICENSE)). The card data has its own licence, CC BY 4.0, in koala-kollect-data.
 
 One Piece Card Game and its card text and images are owned by Bandai and Eiichiro
 Oda/Shueisha/Toei Animation. This project is not affiliated with them.
