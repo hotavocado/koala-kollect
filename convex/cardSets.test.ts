@@ -29,6 +29,7 @@ function printing(key: string, card_key: string, site: "en" | "jp") {
     variant: "base" as const,
     image_url: `https://example.test/${key}.png`,
     source_text: "",
+    block_icon: null,
     first_seen_at: T,
   };
 }

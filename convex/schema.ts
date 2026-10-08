@@ -49,6 +49,8 @@ const category = v.union(
 const confidence = v.union(v.literal("authoritative"), v.literal("corroborated"), v.literal("inferred"));
 
 // Shared by cards and card_observations: the rules facts as one site prints them.
+// block_icon is not one of them: it is a printing fact, and card.block_icon is
+// derived from the printings (koala-kollect-data CONTRACT.md).
 const cardFacts = {
   category,
   colors: v.array(color),
@@ -57,7 +59,6 @@ const cardFacts = {
   power: v.optional(v.number()),
   counter: v.optional(v.number()),
   attributes: v.array(attribute),
-  block_icon: v.optional(v.number()),
 };
 
 export default defineSchema({
@@ -70,6 +71,8 @@ export default defineSchema({
     number: v.optional(v.string()), // OP01-001, P-117
     don_design: v.optional(v.string()), // DON only: {first product code}:{art slug}
     ...cardFacts,
+    // Derived by the data repo from the facts site's printings; never "X".
+    block_icon: v.optional(v.number()),
     // tcgcsv on DON cards only: no official site lists them. The contract's
     // schema enforces the DON-only rule; this mirror only admits the value.
     facts_site: v.union(site, v.literal("tcgcsv")),
@@ -94,7 +97,6 @@ export default defineSchema({
     effect: v.optional(v.string()),
     trigger: v.optional(v.string()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
     superseded_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])
@@ -121,10 +123,9 @@ export default defineSchema({
     image_url: v.string(), // official URL, linked, never re-hosted
     source_text: v.string(), // the verbatim provenance string
     // As printed on this printing on this site: a number, "X" (never rotates
-    // out of standard), or null where the site prints none.
-    block_icon: v.optional(v.union(v.number(), v.literal("X"), v.null())),
+    // out of standard), or null where the site prints none. Required.
+    block_icon: v.union(v.number(), v.literal("X"), v.null()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_card", ["card_key"])
@@ -140,7 +141,6 @@ export default defineSchema({
     suffix_family: v.optional(v.union(v.literal("p"), v.literal("r"))),
     suffix_n: v.optional(v.number()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_printing", ["printing_key"]),
@@ -166,7 +166,6 @@ export default defineSchema({
     release_date_source: v.optional(v.string()), // absolute URL of the page the date was read from
     product_url: v.optional(v.string()),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_site", ["site"]),
@@ -178,7 +177,6 @@ export default defineSchema({
     printing_key: v.string(),
     product_key: v.string(),
     first_seen_at: v.string(),
-    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
     removed_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])

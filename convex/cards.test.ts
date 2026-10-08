@@ -31,7 +31,6 @@ function observation(site: "en" | "jp", name: string, superseded_at?: string) {
     attributes: ["slash" as const],
     types: ["Straw Hat Crew"],
     first_seen_at: T,
-    last_seen_at: T,
     ...(superseded_at ? { superseded_at } : {}),
   };
 }
@@ -45,8 +44,8 @@ function printing(key: string, site: "en" | "jp", variant: "base" | "parallel") 
     variant,
     image_url: `https://example.test/${site}/${key}.png`,
     source_text: "-ROMANCE DAWN- [OP-01]",
+    block_icon: null,
     first_seen_at: T,
-    last_seen_at: T,
   };
 }
 

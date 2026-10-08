@@ -7,7 +7,7 @@ import schema from "./schema";
 import { type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
 // fixtures/contract-valid.jsonl is koala-kollect-data's examples/valid.jsonl,
-// copied at ee05303 (data PR #2). It is the contract's own valid example of
+// copied at ed46bea (data PR #9). It is the contract's own valid example of
 // every record type, so syncing it end to end also checks that
 // convex/schema.ts still accepts what the contract allows. Refresh the copy
 // when the contract changes.
@@ -255,6 +255,41 @@ describe("dataSync.run", () => {
       ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", bad.key)).unique(),
     );
     expect(stored).toBeNull();
+  });
+
+  // The contract dropped last_seen_at (koala-kollect-data ed46bea). Narrowing
+  // the schema never goes red on the valid fixture, so pin the refusal itself.
+  test.each(["card_observation", "printing", "printing_locator", "product", "printing_product"] as const)(
+    "a %s carrying last_seen_at fails the sync",
+    async (type) => {
+      const t = convexTest(schema, modules);
+      const files = fixtureFiles();
+      const path = Object.keys(files).find((p) => files[p].type === type)!;
+      const stale = JSON.parse(files[path].lines[0]) as Rec;
+      stale.last_seen_at = "2026-10-08T00:00:00Z";
+      files[path].lines[0] = JSON.stringify(stale);
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+      expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
+    },
+  );
+
+  // Same close: block_icon is a printing fact, required there, refused on the observation.
+  test.each([
+    ["a card_observation carrying block_icon", "card_observation", (r: Rec) => { r.block_icon = 4; }],
+    ["a printing without block_icon", "printing", (r: Rec) => { delete r.block_icon; }],
+  ] as const)("%s fails the sync", async (_name, type, change) => {
+    const t = convexTest(schema, modules);
+    const files = fixtureFiles();
+    const path = Object.keys(files).find((p) => files[p].type === type)!;
+    const stale = JSON.parse(files[path].lines[0]) as Rec;
+    change(stale);
+    files[path].lines[0] = JSON.stringify(stale);
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+    expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
   });
 
   test("with no commit given, syncs the data repo's main", async () => {
