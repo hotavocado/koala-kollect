@@ -144,6 +144,23 @@ describe("dataSync.run", () => {
     expect(stored).not.toHaveProperty("effect");
   });
 
+  test("stores a product's release_date_source", async () => {
+    const t = convexTest(schema, modules);
+    const files = fixtureFiles();
+    const productPath = Object.keys(files).find((p) => files[p].type === "product")!;
+    const product = JSON.parse(files[productPath].lines[0]) as Rec;
+    product.release_date = "2026-08-22";
+    product.release_date_source = "https://www.onepiece-cardgame.com/products/boosters/op17.php";
+    files[productPath].lines[0] = JSON.stringify(product);
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("ok");
+    const stored = await t.run(async (ctx) =>
+      ctx.db.query("products").withIndex("by_key", (q) => q.eq("key", product.key)).unique(),
+    );
+    expect(stored?.release_date_source).toBe(product.release_date_source);
+  });
+
   test("never deletes a record that leaves the data repo", async () => {
     const t = convexTest(schema, modules);
     const fewer = fixtureFiles();
