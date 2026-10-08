@@ -131,6 +131,27 @@ test("rebuild prunes a set whose products are gone", async () => {
   expect((await t.query(api.cards.sets, {})).map((s) => s.slug)).toEqual(["op-01"]);
 });
 
+// The first sync after this code deploys meets card_sets rows written before
+// sets carried a date. The rebuild has to see a field the stored row lacks.
+test("a rebuild adds a release date to a set row stored without one", async () => {
+  const t = await seed();
+  const dated = await t.run(async (ctx) => {
+    const rows = (await ctx.db.query("products").collect()).filter((p) => p.release_date !== undefined);
+    for (const p of rows) await ctx.db.patch(p._id, { release_date: undefined });
+    return rows.map((p) => ({ id: p._id, release_date: p.release_date! }));
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  expect((await t.query(api.cards.sets, {})).find((s) => s.slug === "op-01")?.releaseDate).toBeNull();
+
+  await t.run(async (ctx) => {
+    for (const p of dated) await ctx.db.patch(p.id, { release_date: p.release_date });
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  const op01 = (await t.query(api.cards.sets, {})).find((s) => s.slug === "op-01");
+  expect(op01?.releaseDate).toBe("2022-12-02");
+  expect(op01?.releaseSite).toBe("en");
+});
+
 test("a set's own numbers lead; cards from other sets follow", async () => {
   const t = await seed();
   await t.run(async (ctx) => {
