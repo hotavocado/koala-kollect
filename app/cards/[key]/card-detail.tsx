@@ -194,7 +194,7 @@ function PrintingRow({ printing: p, site, alt }: { printing: CardPrinting; site:
 
         {p.claims.length > 0 && (
           <div>
-            <p className="text-xs text-muted-foreground">Handed out at</p>
+            <p className="text-xs text-muted-foreground">Where it came from</p>
             <ul className="mt-1 flex flex-col gap-2 text-sm">
               {p.claims.map((c) => (
                 <li key={c.key}>
@@ -227,7 +227,7 @@ function ClaimLine({ claim: c }: { claim: CardClaim }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="font-medium">
-        {d ? d.name : "An unlisted event"}
+        {d ? d.name : "A source not yet in the database"}
         {d?.tier && <span className="font-normal text-muted-foreground"> · {capitalize(d.tier)}</span>}
         {when && <span className="font-normal text-muted-foreground"> · {when}</span>}
       </span>
