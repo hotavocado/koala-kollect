@@ -8,8 +8,15 @@ The card data lives in [koala-kollect-data](https://github.com/hotavocado/koala-
 This app mirrors it into Convex (`convex/schema.ts`), with field names matching
 the data repo's `schema/v1.schema.json`.
 
-**Status:** app scaffold and data sync. The home page renders; the card pages
-come once the data repo has cards to sync.
+**Status:** landing page (`/`), card browse (`/cards`) and data sync. `/cards`
+shows an empty state until the data repo publishes its first card list.
+
+## Deploy
+
+Vercel builds `main` on every push. **The deployed site reads the Convex DEV
+deployment** (`NEXT_PUBLIC_CONVEX_URL` on the Vercel project points at
+`shocking-vulture-461`), because there is no prod deployment yet. Cut a prod
+Convex deployment and repoint that variable before the event QR codes go out.
 
 ## Develop
 
