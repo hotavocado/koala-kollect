@@ -1,0 +1,238 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Bridge M3 colors → Tailwind CSS vars */
+    --background: var(--color-background, #fdfcfc);
+    --foreground: var(--color-on-background, #1d1b19);
+
+    --card: var(--color-surface, #fdfcfc);
+    --card-foreground: var(--color-on-surface, #1d1b19);
+
+    --popover: var(--color-surface, #fdfcfc);
+    --popover-foreground: var(--color-on-surface, #1d1b19);
+
+    --primary: var(--color-primary, #0b0907);
+    --primary-foreground: var(--color-on-primary, #ffffff);
+
+    --secondary: var(--color-surface-variant, #e3e2e1);
+    --secondary-foreground: var(--color-on-surface-variant, #484744);
+
+    --muted: var(--color-surface-variant, #e3e2e1);
+    --muted-foreground: var(--color-outline, #787773);
+
+    --accent: var(--color-secondary, #004ced);
+    --accent-foreground: var(--color-on-secondary, #ffffff);
+
+    --destructive: var(--color-error, #ba1a1a);
+    --destructive-foreground: var(--color-on-error, #ffffff);
+
+    --border: var(--color-surface-variant, #e3e2e1);
+    --input: var(--color-surface-variant, #e3e2e1);
+    --ring: var(--color-secondary, #004ced);
+
+    --radius: 14px;
+
+    --surface-red: var(--color-error-90, #ffdad6);
+    --surface-green: var(--color-composite-surface-2, #f0efef);
+    --text-red: var(--color-error, #ba1a1a);
+    --text-green: var(--color-custom-green, #386348);
+
+    /* A genuinely green pair. --surface-green above is NOT green: it resolves
+       to a neutral composite surface in both themes. --text-green falls back to
+       #386348 in both themes, which is 2.33:1 on the dark surface, below the
+       4.5:1 floor for body text. Use these two for anything that must read as
+       success. Contrast: 7.39:1 light, 7.85:1 dark. */
+    --success-container: #cdeed3;
+    --on-success-container: #0f5132;
+
+    --sidebar-background: var(--color-surface, #fdfcfc);
+    --sidebar-foreground: var(--color-on-surface, #1d1b19);
+    --sidebar-primary: var(--color-primary, #0b0907);
+    --sidebar-primary-foreground: var(--color-on-primary, #ffffff);
+    --sidebar-accent: var(--color-surface-variant, #e3e2e1);
+    --sidebar-accent-foreground: var(--color-on-surface-variant, #484744);
+    --sidebar-border: var(--color-surface-variant, #e3e2e1);
+    --sidebar-ring: var(--color-secondary, #004ced);
+
+    --font-heading: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'Moderat', 'Plus Jakarta Sans', sans-serif;
+
+    /* Layer scale — mapped to M3 surface elevations */
+    --layer-1: var(--color-composite-surface-1, #f5f4f4);
+    --layer-2: var(--color-composite-surface-2, #f0efef);
+    --layer-3: var(--color-composite-surface-3, #ecebea);
+
+    /* Shadow scale */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.07), 0 1px 4px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.09), 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .dark {
+    --background: var(--color-background, #1d1b19);
+    --foreground: var(--color-on-background, #e3e2e1);
+
+    --card: var(--color-surface, #1d1b19);
+    --card-foreground: var(--color-on-surface, #e3e2e1);
+
+    --popover: var(--color-surface, #1d1b19);
+    --popover-foreground: var(--color-on-surface, #e3e2e1);
+
+    --primary: var(--color-primary, #e3e2e1);
+    --primary-foreground: var(--color-on-primary, #1d1b19);
+
+    --secondary: var(--color-surface-variant, #484744);
+    --secondary-foreground: var(--color-on-surface-variant, #c6c6c5);
+
+    --muted: var(--color-surface-variant, #484744);
+    --muted-foreground: var(--color-outline, #91918e);
+
+    --accent: var(--color-secondary, #8bceff);
+    --accent-foreground: var(--color-on-secondary, #041847);
+
+    --destructive: var(--color-error, #ffb4ab);
+    --destructive-foreground: var(--color-on-error, #93000a);
+
+    --border: var(--color-surface-variant, #484744);
+    --input: var(--color-surface-variant, #484744);
+    --ring: var(--color-secondary, #8bceff);
+
+    --surface-red: var(--color-error-container, #690005);
+    --surface-green: var(--color-composite-surface-2, #242220);
+    --text-red: var(--color-error, #ffb4ab);
+    --text-green: var(--color-custom-green, #386348);
+
+    /* Dark-mode half of the pair — see the light block for why it exists.
+       INVERTED, not darkened: the container goes deep and the ink goes light,
+       because a single ink for both themes is what left --text-green failing
+       here at 2.33:1. */
+    --success-container: #14351f;
+    --on-success-container: #7fd99a;
+
+    --sidebar-background: var(--color-surface, #1d1b19);
+    --sidebar-foreground: var(--color-on-surface, #e3e2e1);
+    --sidebar-primary: var(--color-primary, #e3e2e1);
+    --sidebar-primary-foreground: var(--color-on-primary, #1d1b19);
+    --sidebar-accent: var(--color-surface-variant, #484744);
+    --sidebar-accent-foreground: var(--color-on-surface-variant, #c6c6c5);
+    --sidebar-border: var(--color-surface-variant, #484744);
+    --sidebar-ring: var(--color-secondary, #8bceff);
+
+    --layer-1: var(--color-composite-surface-1, #22201e);
+    --layer-2: var(--color-composite-surface-2, #242220);
+    --layer-3: var(--color-composite-surface-3, #272523);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-body);
+  }
+
+  /* Lock the page against horizontal scroll + iOS elastic bounce. The full-bleed
+     carousel (w-screen / 100vw) runs a hair past the visual viewport on mobile,
+     and iOS Safari ignores `overflow-x: hidden` for touch-pan — the page jiggles
+     left-right on the rubber-band. `clip` hard-stops the axis (no scroll port at
+     all) and overscroll-behavior-x kills the elastic bounce. The cards still
+     swipe — that scroll lives in their own overflow-x-auto strip, not the page. */
+  html,
+  body {
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+  }
+
+  /* Scrollbars: just the oblong gray thumb — no track bg, no border/outline */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-outline-variant, #c6c6c5) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-outline-variant, #c6c6c5);
+    border-radius: 9999px;
+    border: none;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-outline, #787773);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-heading);
+  }
+  h4, h5, h6 {
+    font-family: var(--font-body);
+  }
+}
+
+/* Scrollable but no visible scrollbar — for in-card scroll where a soft mask
+   edge is the "there's more" affordance instead of the bar. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+  .pill {
+    @apply rounded-full;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out both;
+}
+
+.animate-fade-up-delay-1 {
+  animation: fade-up 0.6s ease-out 0.1s both;
+}
+
+.animate-fade-up-delay-2 {
+  animation: fade-up 0.6s ease-out 0.2s both;
+}
+
+.animate-fade-up-delay-3 {
+  animation: fade-up 0.6s ease-out 0.3s both;
+}
