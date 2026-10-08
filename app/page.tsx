@@ -1,40 +1,69 @@
-const sites = [
-  { code: "EN", name: "English" },
-  { code: "Asia-EN", name: "English (Asia)" },
-  { code: "JP", name: "Japanese" },
-  { code: "TC", name: "Traditional Chinese" },
-  { code: "CN", name: "Simplified Chinese" },
-];
+import Link from "next/link";
 
+// The page a QR code on a Minokoala card lands on, so it answers three things
+// in order: what this is, the art, and the way into the cards.
 export default function Home() {
   return (
-    <main className="container py-16">
-      <h1 className="text-4xl xs:text-5xl">Koala Kollect</h1>
-      <p className="mt-4 max-w-xl text-base text-muted-foreground">
-        Every One Piece Card Game card printed in English, Japanese and Chinese, and where each
-        printing came from.
-      </p>
+    <div className="flex min-h-dvh flex-col">
+      <header className="container flex h-16 items-center">
+        <span className="font-heading text-lg font-semibold">Koala Kollect</span>
+      </header>
 
-      <section className="mt-10 rounded-lg bg-layer-1 p-6 shadow-sm">
-        <h2 className="text-xl">Card database</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Not populated yet. Cards sync from{" "}
-          <a
-            className="text-foreground underline underline-offset-4"
-            href="https://github.com/hotavocado/koala-kollect-data"
+      <main className="container flex flex-1 flex-col gap-8 pb-12 pt-4 xs:pt-10">
+        <h1 className="max-w-2xl text-3xl font-semibold xs:text-5xl">
+          Every One Piece card ever printed, and where each one came from.
+        </h1>
+
+        <ArtSlot />
+
+        <div className="flex flex-col gap-3">
+          <Link
+            href="/cards"
+            className="inline-flex h-12 w-full items-center justify-center rounded-pill bg-primary px-6 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 xs:w-auto xs:self-start"
           >
-            koala-kollect-data
+            Browse the cards
+          </Link>
+          <p className="max-w-xl text-sm text-muted-foreground">
+            English, Japanese and Chinese printings, read from the official card lists. Free and
+            open source.
+          </p>
+        </div>
+      </main>
+
+      <footer className="container pb-8 text-xs text-muted-foreground">
+        <p>
+          Fan-made and not affiliated with Bandai. Card images link to their official sources.{" "}
+          <a
+            className="underline underline-offset-4 hover:text-foreground"
+            href="https://github.com/hotavocado/koala-kollect"
+          >
+            Source on GitHub
           </a>
-          , which reads the official card list on each of these sites:
         </p>
-        <ul className="mt-4 flex flex-wrap gap-2">
-          {sites.map((s) => (
-            <li key={s.code} className="pill bg-custom-blue px-3 py-1 text-xs text-m3-on-surface">
-              {s.code} · {s.name}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </main>
+      </footer>
+    </div>
+  );
+}
+
+// Holds the space for the mascot art (Minokoala, with Koala and Sabo) until
+// Mike's files arrive. Swap the inner placeholder for the image and keep the
+// frame, so the layout does not move when the art lands. Original art only:
+// nothing from the show goes in this slot.
+function ArtSlot() {
+  return (
+    <figure
+      aria-label="Koala Kollect art, coming soon"
+      className="relative aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-lg bg-layer-2"
+    >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+        <span
+          aria-hidden
+          className="flex size-16 items-center justify-center rounded-lg bg-primary font-heading text-xl font-semibold text-primary-foreground"
+        >
+          KK
+        </span>
+        <span className="text-xs">Art coming soon</span>
+      </div>
+    </figure>
   );
 }
