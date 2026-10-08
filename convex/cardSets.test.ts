@@ -65,8 +65,8 @@ async function seed() {
       await ctx.db.insert("printings", p);
     }
     for (const p of [
-      product("en", "OP-01", "BOOSTER PACK -ROMANCE DAWN- [OP-01]", "booster"),
-      product("jp", "OP-01", "ブースターパック ROMANCE DAWN【OP-01】", "booster"),
+      { ...product("en", "OP-01", "BOOSTER PACK -ROMANCE DAWN- [OP-01]", "booster"), release_date: "2022-12-02" },
+      { ...product("jp", "OP-01", "ブースターパック ROMANCE DAWN【OP-01】", "booster"), release_date: "2022-07-22" },
       product("en", undefined, "Promotion card", "promo_bucket"),
     ]) {
       await ctx.db.insert("products", p);
@@ -90,8 +90,24 @@ test("rebuild counts distinct cards per set and lists them by number", async () 
   expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 2, pruned: 0 });
 
   expect(await t.query(api.cards.sets, {})).toEqual([
-    { slug: "op-01", code: "OP-01", kind: "booster", title: "ROMANCE DAWN", cardCount: 2 },
-    { slug: "promo", code: null, kind: "promo", title: "Promotion cards", cardCount: 1 },
+    {
+      slug: "op-01",
+      code: "OP-01",
+      kind: "booster",
+      title: "ROMANCE DAWN",
+      cardCount: 2,
+      releaseDate: "2022-12-02",
+      releaseSite: "en",
+    },
+    {
+      slug: "promo",
+      code: null,
+      kind: "promo",
+      title: "Promotion cards",
+      cardCount: 1,
+      releaseDate: null,
+      releaseSite: null,
+    },
   ]);
 
   const op01 = await t.query(api.cards.setCards, { slug: "op-01" });

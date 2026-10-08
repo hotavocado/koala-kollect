@@ -162,7 +162,7 @@ export default defineSchema({
       v.literal("promo_bucket"),
       v.literal("other"),
     ),
-    release_date: v.optional(v.string()), // YYYY, YYYY-MM or YYYY-MM-DD
+    release_date: v.optional(v.string()), // YYYY-MM-DD; omitted on the limited and promo buckets
     release_date_source: v.optional(v.string()), // absolute URL of the page the date was read from
     product_url: v.optional(v.string()),
     first_seen_at: v.string(),
@@ -288,6 +288,8 @@ export default defineSchema({
     ),
     title: v.string(),
     product_keys: v.array(v.string()),
+    release_date: v.optional(v.string()), // en's, or jp's when en has no dated product for the code
+    release_site: v.optional(v.union(v.literal("en"), v.literal("jp"))),
     card_count: v.number(),
     order: v.number(),
   })

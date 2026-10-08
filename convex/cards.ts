@@ -117,10 +117,20 @@ export type CardSetRow = {
   kind: Doc<"card_sets">["kind"];
   title: string;
   cardCount: number;
+  releaseDate: string | null;
+  releaseSite: "en" | "jp" | null;
 };
 
 function setRow(set: Doc<"card_sets">): CardSetRow {
-  return { slug: set.slug, code: set.code ?? null, kind: set.kind, title: set.title, cardCount: set.card_count };
+  return {
+    slug: set.slug,
+    code: set.code ?? null,
+    kind: set.kind,
+    title: set.title,
+    cardCount: set.card_count,
+    releaseDate: set.release_date ?? null,
+    releaseSite: set.release_site ?? null,
+  };
 }
 
 export const sets = query({

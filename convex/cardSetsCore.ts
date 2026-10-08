@@ -7,8 +7,10 @@ import type { Doc } from "./_generated/dataModel";
 
 export type SetKind = "booster" | "extra" | "premium" | "starter" | "promo" | "limited" | "family" | "other";
 
-// Index order. No product carries a release date yet, so kind then code
-// (newest first) stands in for "by set, then by time".
+// Index order: kind, then release date newest first within a kind. A set's
+// date is its en product's release date, or its jp product's when en has no
+// dated row for the code (the index labels which). Undated sets follow the dated
+// ones in each kind, newest code first.
 export const SET_KIND_ORDER: readonly SetKind[] = [
   "booster",
   "extra",
@@ -20,7 +22,9 @@ export const SET_KIND_ORDER: readonly SetKind[] = [
   "other",
 ];
 
-export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name" | "kind">;
+export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name" | "kind" | "release_date">;
+
+export type ReleaseSite = "en" | "jp";
 
 export type SetGroup = {
   slug: string;
@@ -28,6 +32,8 @@ export type SetGroup = {
   kind: SetKind;
   title: string;
   product_keys: string[];
+  release_date: string | null;
+  release_site: ReleaseSite | null;
   order: number;
 };
 
@@ -71,9 +77,23 @@ function codeRank(code: string): { series: string; number: number } {
   return m ? { series: m[1], number: Number(m[2]) } : { series: code, number: -1 };
 }
 
+// The set's date from one site: the earliest dated product it has there. Only a
+// full YYYY-MM-DD counts; the data repo refuses anything else, and a stray
+// partial date here reads as undated rather than sorting as a string.
+function siteDate(products: ProductInput[], site: ReleaseSite): string | null {
+  const dates = products
+    .filter((p) => p.site === site && p.release_date && /^\d{4}-\d{2}-\d{2}$/.test(p.release_date))
+    .map((p) => p.release_date!);
+  return dates.length ? dates.sort()[0] : null;
+}
+
 function compareSets(a: Omit<SetGroup, "order">, b: Omit<SetGroup, "order">): number {
   const byKind = SET_KIND_ORDER.indexOf(a.kind) - SET_KIND_ORDER.indexOf(b.kind);
   if (byKind !== 0) return byKind;
+  if (a.release_date !== b.release_date) {
+    if (a.release_date === null || b.release_date === null) return a.release_date === null ? 1 : -1;
+    return b.release_date.localeCompare(a.release_date);
+  }
   if (a.code === null || b.code === null) return (a.code === null ? 1 : 0) - (b.code === null ? 1 : 0);
   const ra = codeRank(a.code);
   const rb = codeRank(b.code);
@@ -101,12 +121,16 @@ export function groupProducts(products: ProductInput[]): SetGroup[] {
       const named = TITLE_SITE_ORDER.map((s) => g.products.find((p) => p.site === s)).find(Boolean);
       title = (named && productTitle(named.name)) || g.code;
     }
+    const en = siteDate(g.products, "en");
+    const jp = en === null ? siteDate(g.products, "jp") : null;
     return {
       slug,
       code: g.code,
       kind: g.kind,
       title,
       product_keys: g.products.map((p) => p.key).sort(),
+      release_date: en ?? jp,
+      release_site: en !== null ? ("en" as const) : jp !== null ? ("jp" as const) : null,
     };
   });
   return groups.sort(compareSets).map((g, order) => ({ ...g, order }));

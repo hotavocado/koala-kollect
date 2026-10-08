@@ -35,7 +35,8 @@ function ConnectedIndex() {
   return (
     <div className="flex flex-col gap-8">
       <p className="text-sm text-muted-foreground">
-        Release dates aren&apos;t in the database yet, so each group lists the newest set code first.
+        Newest release first in each group, by the English release date. A set with no English release
+        shows its Japanese date, marked JP.
       </p>
       {sections.map((section) => (
         <section key={section.kind}>
@@ -63,6 +64,15 @@ function SetRow({ set }: { set: CardSetRow }) {
         <span className="block truncate text-sm font-medium">{set.title}</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {set.cardCount} card{set.cardCount === 1 ? "" : "s"}
+          {set.releaseDate && (
+            <>
+              {" · "}
+              <span className="whitespace-nowrap">
+                {set.releaseSite === "jp" && "JP "}
+                {formatReleaseDate(set.releaseDate)}
+              </span>
+            </>
+          )}
         </span>
       </span>
       {set.code && (
@@ -94,6 +104,13 @@ function EmptyDatabase() {
       {sync !== undefined && detail}
     </Notice>
   );
+}
+
+// A release date is a calendar day with no zone; format it in UTC so a viewer
+// west of UTC doesn't see the day before.
+function formatReleaseDate(date: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", dateStyle: "medium" });
 }
 
 function formatWhen(iso: string): string {
