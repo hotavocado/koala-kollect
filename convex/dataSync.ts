@@ -46,30 +46,32 @@ function nowIso(): string {
 // GitHub rejects some requests that carry no User-Agent.
 const GITHUB_HEADERS = { "User-Agent": "koala-kollect-sync" };
 
-async function get(url: string, what: string, headers: Record<string, string> = {}): Promise<Response> {
-  let res: Response;
+// Fetches a URL's whole body. Any failure, including one while the body is
+// being read, becomes a Refusal naming what was fetched.
+async function getBytes(url: string, what: string): Promise<ArrayBuffer> {
   try {
-    res = await fetch(url, { headers: { ...GITHUB_HEADERS, ...headers } });
+    const res = await fetch(url, { headers: GITHUB_HEADERS });
+    if (!res.ok) {
+      // The body is the only place GitHub says why (rate limit, abuse block).
+      const body = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 120);
+      throw new Refusal(`${what}: HTTP ${res.status}${body ? ` (${body})` : ""}`);
+    }
+    return await res.arrayBuffer();
   } catch (e) {
+    if (e instanceof Refusal) throw e;
     throw new Refusal(`${what}: ${e instanceof Error ? e.message : String(e)}`);
   }
-  if (!res.ok) {
-    // The body is the only place GitHub says why (rate limit, abuse block).
-    const body = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 120);
-    throw new Refusal(`${what}: HTTP ${res.status}${body ? ` (${body})` : ""}`);
-  }
-  return res;
 }
 
 async function latestCommit(): Promise<string> {
-  const res = await get(`https://github.com/${repo()}.git/info/refs?service=git-upload-pack`, "data repo main");
-  const sha = mainFromRefs(await res.text());
+  const advert = await getBytes(`https://github.com/${repo()}.git/info/refs?service=git-upload-pack`, "data repo main");
+  const sha = mainFromRefs(new TextDecoder().decode(advert));
   if (sha === null) throw new Refusal("data repo main: no refs/heads/main in the ref advertisement");
   return sha;
 }
 
 async function fetchFile(commit: string, path: string): Promise<ArrayBuffer> {
-  return await (await get(`https://raw.githubusercontent.com/${repo()}/${commit}/${path}`, path)).arrayBuffer();
+  return await getBytes(`https://raw.githubusercontent.com/${repo()}/${commit}/${path}`, path);
 }
 
 export const run = internalAction({
@@ -121,12 +123,24 @@ export const run = internalAction({
         await verifyFile(path, await fetchFile(commit, path), entry);
       }
     } catch (e) {
-      if (!(e instanceof Refusal)) throw e;
-      await ctx.runMutation(internal.dataSync.finish, { syncId, status: "refused", refusal: e.message });
-      return { status: "refused", data_commit: commit ?? undefined, detail: e.message };
+      // A Refusal is a contract violation; anything else is our failure. Either
+      // way the row is closed, so it never sits "running" and blocks the next run.
+      const refused = e instanceof Refusal;
+      const message = e instanceof Error ? e.message : String(e);
+      await ctx.runMutation(internal.dataSync.finish, {
+        syncId,
+        status: refused ? "refused" : "failed",
+        refusal: message,
+      });
+      return { status: refused ? "refused" : "failed", data_commit: commit ?? undefined, detail: message };
     }
 
-    // Pass 2: write.
+    // Pass 2: write. Each batch commits on its own, so a failure here leaves
+    // the tables holding records from this commit and the one before. That is
+    // accepted rather than staged: every record is keyed and valid on its own,
+    // the row is closed "failed", and the next run retries this commit (only
+    // an "ok" sync is skipped). Pass 1 has already proven the files, so what
+    // remains is a network failure or a record the Convex schema rejects.
     let upserted = 0;
     try {
       for (const [path, entry] of Object.entries(manifest.files)) {

@@ -94,7 +94,12 @@ export async function verifyFile(
   if (sha !== entry.sha256) {
     throw new Refusal(`sha256 mismatch on ${path}: manifest ${entry.sha256}, file ${sha}`);
   }
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Refusal(`${path} is not valid UTF-8`);
+  }
   if (text.length > 0 && !text.endsWith("\n")) throw new Refusal(`${path} has no trailing newline`);
   const lines = text.length === 0 ? [] : text.slice(0, -1).split("\n");
   if (lines.length !== entry.rows) {

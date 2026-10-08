@@ -7,7 +7,7 @@ import schema from "./schema";
 import { type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
 // fixtures/contract-valid.jsonl is koala-kollect-data's examples/valid.jsonl,
-// copied at f45fc6e (data PR #2). It is the contract's own valid example of
+// copied at ee05303 (data PR #2). It is the contract's own valid example of
 // every record type, so syncing it end to end also checks that
 // convex/schema.ts still accepts what the contract allows. Refresh the copy
 // when the contract changes.
@@ -42,9 +42,9 @@ const enc = new TextEncoder();
 // them, then lets the caller tamper with either.
 async function repoAt(
   files = fixtureFiles(),
-  tamper: (m: { files: Record<string, { type: string; rows: number; sha256: string }> }, bodies: Map<string, string>) => void = () => {},
+  tamper: (m: { files: Record<string, { type: string; rows: number; sha256: string }> }, bodies: Map<string, Body>) => void = () => {},
 ) {
-  const bodies = new Map<string, string>();
+  const bodies = new Map<string, Body>();
   const manifest = { schema_version: 1, generated_at: "2026-10-08T00:00:00Z", files: {} as Record<string, { type: string; rows: number; sha256: string }> };
   for (const [path, f] of Object.entries(files)) {
     const body = f.lines.map((l) => `${l}\n`).join("");
@@ -56,7 +56,9 @@ async function repoAt(
   return bodies;
 }
 
-function serve(repos: Record<string, Map<string, string>>, main: string | number = COMMIT_A) {
+type Body = string | Uint8Array<ArrayBuffer> | (() => Response);
+
+function serve(repos: Record<string, Map<string, Body>>, main: string | number = COMMIT_A) {
   const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
     if (url === "https://github.com/hotavocado/koala-kollect-data.git/info/refs?service=git-upload-pack") {
       if (typeof main === "number") return new Response("forbidden", { status: main });
@@ -67,7 +69,8 @@ function serve(repos: Record<string, Map<string, string>>, main: string | number
     }
     const m = url.match(/^https:\/\/raw\.githubusercontent\.com\/hotavocado\/koala-kollect-data\/([0-9a-f]{40})\/(.+)$/);
     const body = m ? repos[m[1]]?.get(m[2]) : undefined;
-    return body === undefined ? new Response("not found", { status: 404 }) : new Response(body);
+    if (body === undefined) return new Response("not found", { status: 404 });
+    return typeof body === "function" ? body() : new Response(body);
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -102,7 +105,8 @@ describe("dataSync.run", () => {
     expect(await counts(t)).toEqual(expected);
     for (const n of Object.values(expected)) expect(n).toBeGreaterThan(0); // every table exercised
     const [row] = await syncs(t);
-    expect(row).toMatchObject({ data_commit: COMMIT_A, status: "ok", upserted: 12 });
+    const total = Object.values(expected).reduce((a, b) => a + b, 0);
+    expect(row).toMatchObject({ data_commit: COMMIT_A, status: "ok", upserted: total });
     expect(row.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -153,7 +157,7 @@ describe("dataSync.run", () => {
   });
 
   // Each refusal must name its reason and leave every table empty.
-  const refusals: [string, (m: { files: Record<string, { type: string; rows: number; sha256: string }> }, b: Map<string, string>) => void, RegExp][] = [
+  const refusals: [string, (m: { files: Record<string, { type: string; rows: number; sha256: string }> }, b: Map<string, Body>) => void, RegExp][] = [
     ["a sha256 mismatch", (m) => { m.files["data/cards.jsonl"].sha256 = "0".repeat(64); }, /^sha256 mismatch on data\/cards\.jsonl/],
     ["a row count mismatch", (m) => { m.files["data/cards.jsonl"].rows += 1; }, /^row count mismatch on data\/cards\.jsonl: manifest 3, file 2$/],
     ["a file the manifest lists but the repo lacks", (_m, b) => { b.delete("data/distributions.jsonl"); }, /^data\/distributions\.jsonl: HTTP 404 \(not found\)$/],
@@ -170,6 +174,43 @@ describe("dataSync.run", () => {
     expect(r.detail).toMatch(reason);
     expect(await counts(t)).toEqual(EMPTY);
     expect(await syncs(t)).toMatchObject([{ status: "refused", refusal: r.detail }]);
+  });
+
+  test("refuses a file whose bytes match its sha256 but are not UTF-8", async () => {
+    const t = convexTest(schema, modules);
+    const bad = new Uint8Array([0x7b, 0xff, 0xfe, 0x7d, 0x0a]); // "{", two invalid bytes, "}", newline
+    const repo = await repoAt(undefined, (m, b) => {
+      b.set("data/cards.jsonl", bad);
+      m.files["data/cards.jsonl"].rows = 1;
+    });
+    const manifest = JSON.parse(repo.get("manifest.json") as string);
+    manifest.files["data/cards.jsonl"].sha256 = await sha256Hex(bad.buffer as ArrayBuffer);
+    repo.set("manifest.json", JSON.stringify(manifest));
+    serve({ [COMMIT_A]: repo });
+
+    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+    expect(r).toMatchObject({ status: "refused", detail: "data/cards.jsonl is not valid UTF-8" });
+    expect(await syncs(t)).toMatchObject([{ status: "refused" }]);
+    expect(await counts(t)).toEqual(EMPTY);
+  });
+
+  test("refuses when a body fails mid-read, and closes the sync row", async () => {
+    const t = convexTest(schema, modules);
+    const broken = () =>
+      new Response(
+        new ReadableStream({
+          start(c) {
+            c.error(new Error("connection reset"));
+          },
+        }),
+      );
+    serve({ [COMMIT_A]: await repoAt(undefined, (_m, b) => b.set("data/cards.jsonl", broken)) });
+
+    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+    expect(r).toMatchObject({ status: "refused", detail: "data/cards.jsonl: connection reset" });
+    expect(await syncs(t)).toMatchObject([{ status: "refused" }]);
   });
 
   test("refuses when the commit has no manifest", async () => {
