@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as cardSearch from "../cardSearch.js";
+import type * as cardSearchCore from "../cardSearchCore.js";
 import type * as cardSets from "../cardSets.js";
 import type * as cardSetsCore from "../cardSetsCore.js";
 import type * as cards from "../cards.js";
@@ -22,6 +24,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  cardSearch: typeof cardSearch;
+  cardSearchCore: typeof cardSearchCore;
   cardSets: typeof cardSets;
   cardSetsCore: typeof cardSetsCore;
   cards: typeof cards;

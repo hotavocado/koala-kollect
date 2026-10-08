@@ -100,7 +100,10 @@ export default defineSchema({
     superseded_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])
-    .index("by_card_site", ["card_key", "site"]),
+    .index("by_card_site", ["card_key", "site"])
+    // Card search by name, in every language a site prints. An index, not a
+    // field: nothing the sync writes changes.
+    .searchIndex("search_name", { searchField: "name" }),
 
   // One physical print as one site lists it. No removed_at: where it is listed
   // lives on printing_products, and printings move between series pages under

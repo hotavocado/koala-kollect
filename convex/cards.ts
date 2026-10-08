@@ -82,7 +82,7 @@ export const browse = query({
 // One tile's worth of a card: the shown name, the best image, the printing count.
 // imageFrom narrows the tile image to the printings a set lists, so a reprint
 // or parallel shows the art that set carries rather than the card's base art.
-async function browseRow(
+export async function browseRow(
   ctx: QueryCtx,
   card: Doc<"cards">,
   imageFrom?: Doc<"printings">[],
