@@ -1,8 +1,10 @@
 "use client";
 
 import { usePaginatedQuery, useQuery } from "convex/react";
+import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { BrowseCard } from "@/convex/cards";
+import { cardLabel, ColorDots, Notice } from "./ui";
 
 const PAGE_SIZE = 24;
 
@@ -76,26 +78,8 @@ function EmptyDatabase() {
   );
 }
 
-function Notice({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg bg-layer-1 p-6">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="mt-2 max-w-xl text-sm text-muted-foreground">{children}</p>
-    </div>
-  );
-}
-
-const COLOR_DOT: Record<BrowseCard["colors"][number], string> = {
-  red: "bg-custom-red-saturated",
-  green: "bg-custom-green-saturated",
-  blue: "bg-custom-blue-saturated",
-  purple: "bg-custom-purple-saturated",
-  black: "bg-foreground",
-  yellow: "bg-custom-yellow-saturated",
-};
-
 function CardTile({ card }: { card: BrowseCard }) {
-  const label = card.name ?? (card.category === "don" ? "DON!!" : (card.number ?? "Unnamed card"));
+  const label = cardLabel(card);
   // A text face, not the image: the official image hosts send
   // Cross-Origin-Resource-Policy: same-site, so every browser refuses to load
   // them here. card.imageUrl stays in the data as the image's locator.
@@ -106,26 +90,15 @@ function CardTile({ card }: { card: BrowseCard }) {
     </div>
   );
   return (
-    <div className="flex flex-col gap-2">
-      {card.officialUrl ? (
-        <a
-          href={card.officialUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${label} on the official card list (opens in a new tab)`}
-          className="rounded-md transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          {face}
-        </a>
-      ) : (
-        face
-      )}
+    <Link
+      href={`/cards/${card.key}`}
+      className="flex flex-col gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      {face}
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{label}</p>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {card.colors.map((c) => (
-            <span key={c} aria-label={c} className={`size-2 rounded-full ${COLOR_DOT[c]}`} />
-          ))}
+          <ColorDots colors={card.colors} />
           <span className="truncate">
             {[card.number, `${card.printings} printing${card.printings === 1 ? "" : "s"}`]
               .filter(Boolean)
@@ -133,7 +106,7 @@ function CardTile({ card }: { card: BrowseCard }) {
           </span>
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
