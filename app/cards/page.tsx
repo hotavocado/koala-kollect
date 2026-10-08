@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CardBrowser } from "./card-browser";
+import { ImageCredit } from "./ui";
 
 export const metadata: Metadata = {
   title: "Cards · Koala Kollect",
@@ -21,6 +22,7 @@ export default function CardsPage() {
           <CardBrowser />
         </div>
       </main>
+      <ImageCredit />
     </div>
   );
 }

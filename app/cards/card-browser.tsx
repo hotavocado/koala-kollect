@@ -3,6 +3,7 @@
 import { usePaginatedQuery, useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
+import { CardImage } from "./card-image";
 import type { BrowseCard } from "@/convex/cards";
 import { cardLabel, ColorDots, Notice } from "./ui";
 
@@ -80,14 +81,19 @@ function EmptyDatabase() {
 
 function CardTile({ card }: { card: BrowseCard }) {
   const label = cardLabel(card);
-  // A text face, not the image: the official image hosts send
-  // Cross-Origin-Resource-Policy: same-site, so every browser refuses to load
-  // them here. card.imageUrl stays in the data as the image's locator.
+  // The text face stands in when the card has no official image, or it fails.
   const face = (
-    <div className="flex aspect-[63/88] flex-col items-center justify-center gap-1 rounded-md bg-layer-2 p-3 text-center">
-      {card.number && <span className="text-lg font-semibold tracking-tight">{card.number}</span>}
-      <span className="line-clamp-3 text-xs text-muted-foreground">{label}</span>
-    </div>
+    <CardImage
+      imageUrl={card.imageUrl}
+      alt={label}
+      className="aspect-[63/88] w-full rounded-md bg-layer-2 object-cover"
+      fallback={
+        <div className="flex aspect-[63/88] flex-col items-center justify-center gap-1 rounded-md bg-layer-2 p-3 text-center">
+          {card.number && <span className="text-lg font-semibold tracking-tight">{card.number}</span>}
+          <span className="line-clamp-3 text-xs text-muted-foreground">{label}</span>
+        </div>
+      }
+    />
   );
   return (
     <Link
