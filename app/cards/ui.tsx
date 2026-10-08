@@ -59,6 +59,24 @@ export const SET_KIND_LABEL: Record<Doc<"card_sets">["kind"], string> = {
   other: "Other",
 };
 
+// A set's release date as the index and the set page show it. The date is a
+// calendar day with no zone, so it formats in UTC and a viewer west of UTC
+// doesn't see the day before. The index reads months, so a row stays on one
+// line at phone width; the set page carries the day. A date taken from the
+// Japanese site because there is no English release is marked JP.
+export function releaseLabel(
+  set: { releaseDate: string | null; releaseSite: "en" | "jp" | null },
+  precision: "month" | "day",
+  locale?: string,
+): string | null {
+  if (!set.releaseDate) return null;
+  const prefix = set.releaseSite === "jp" ? "JP " : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(set.releaseDate)) return prefix + set.releaseDate;
+  const style: Intl.DateTimeFormatOptions =
+    precision === "month" ? { month: "short", year: "numeric" } : { dateStyle: "medium" };
+  return prefix + new Date(`${set.releaseDate}T00:00:00Z`).toLocaleDateString(locale, { timeZone: "UTC", ...style });
+}
+
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg bg-layer-1 p-6">

@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { CardSetRow } from "@/convex/cards";
-import { Notice, SET_KIND_HEADING } from "./ui";
+import { Notice, releaseLabel, SET_KIND_HEADING } from "./ui";
 
 // Providers mounts Convex only when NEXT_PUBLIC_CONVEX_URL is set, and the
 // hooks below throw without it, so the check has to sit above them.
@@ -55,6 +55,7 @@ function ConnectedIndex() {
 }
 
 function SetRow({ set }: { set: CardSetRow }) {
+  const released = releaseLabel(set, "month");
   return (
     <Link
       href={`/cards/set/${set.slug}`}
@@ -64,13 +65,10 @@ function SetRow({ set }: { set: CardSetRow }) {
         <span className="block truncate text-sm font-medium">{set.title}</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {set.cardCount} card{set.cardCount === 1 ? "" : "s"}
-          {set.releaseDate && (
+          {released && (
             <>
               {" · "}
-              <span className="whitespace-nowrap">
-                {set.releaseSite === "jp" && "JP "}
-                {formatReleaseDate(set.releaseDate)}
-              </span>
+              <span className="whitespace-nowrap">{released}</span>
             </>
           )}
         </span>
@@ -104,13 +102,6 @@ function EmptyDatabase() {
       {sync !== undefined && detail}
     </Notice>
   );
-}
-
-// A release date is a calendar day with no zone; format it in UTC so a viewer
-// west of UTC doesn't see the day before.
-function formatReleaseDate(date: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", dateStyle: "medium" });
 }
 
 function formatWhen(iso: string): string {

@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { BrowseCard } from "@/convex/cards";
 import { CardTile } from "../../card-tile";
-import { Notice, SET_KIND_LABEL } from "../../ui";
+import { Notice, releaseLabel, SET_KIND_LABEL } from "../../ui";
 
 // Same guard as the index: the Convex hooks throw without a deployment.
 export function SetCardsView({ slug }: { slug: string }) {
@@ -27,6 +27,7 @@ function ConnectedSet({ slug }: { slug: string }) {
 
   const { set, cards, fromOtherSets } = result;
   const total = cards.length + fromOtherSets.length;
+  const released = releaseLabel(set, "day");
   return (
     <>
       <h1 className="text-3xl font-semibold">{set.title}</h1>
@@ -38,6 +39,12 @@ function ConnectedSet({ slug }: { slug: string }) {
         )}
         <span>
           {SET_KIND_LABEL[set.kind]} · {total} card{total === 1 ? "" : "s"}
+          {released && (
+            <>
+              {" · "}
+              <span className="whitespace-nowrap">{released}</span>
+            </>
+          )}
         </span>
       </p>
       <CardGrid cards={cards} />
