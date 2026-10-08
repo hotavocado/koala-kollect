@@ -7,7 +7,7 @@ import schema from "./schema";
 import { type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
 // fixtures/contract-valid.jsonl is koala-kollect-data's examples/valid.jsonl,
-// copied at 0b42a95 (data PR #10). It is the contract's own valid example of
+// copied at 9729b10 (data PR #10). It is the contract's own valid example of
 // every record type, so syncing it end to end also checks that
 // convex/schema.ts still accepts what the contract allows. Refresh the copy
 // when the contract changes.
