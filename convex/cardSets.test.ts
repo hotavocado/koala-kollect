@@ -65,8 +65,8 @@ async function seed() {
       await ctx.db.insert("printings", p);
     }
     for (const p of [
-      product("en", "OP-01", "BOOSTER PACK -ROMANCE DAWN- [OP-01]", "booster"),
-      product("jp", "OP-01", "ブースターパック ROMANCE DAWN【OP-01】", "booster"),
+      { ...product("en", "OP-01", "BOOSTER PACK -ROMANCE DAWN- [OP-01]", "booster"), release_date: "2022-12-02" },
+      { ...product("jp", "OP-01", "ブースターパック ROMANCE DAWN【OP-01】", "booster"), release_date: "2022-07-22" },
       product("en", undefined, "Promotion card", "promo_bucket"),
     ]) {
       await ctx.db.insert("products", p);
@@ -90,8 +90,24 @@ test("rebuild counts distinct cards per set and lists them by number", async () 
   expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 2, pruned: 0 });
 
   expect(await t.query(api.cards.sets, {})).toEqual([
-    { slug: "op-01", code: "OP-01", kind: "booster", title: "ROMANCE DAWN", cardCount: 2 },
-    { slug: "promo", code: null, kind: "promo", title: "Promotion cards", cardCount: 1 },
+    {
+      slug: "op-01",
+      code: "OP-01",
+      kind: "booster",
+      title: "ROMANCE DAWN",
+      cardCount: 2,
+      releaseDate: "2022-12-02",
+      releaseSite: "en",
+    },
+    {
+      slug: "promo",
+      code: null,
+      kind: "promo",
+      title: "Promotion cards",
+      cardCount: 1,
+      releaseDate: null,
+      releaseSite: null,
+    },
   ]);
 
   const op01 = await t.query(api.cards.setCards, { slug: "op-01" });
@@ -113,6 +129,27 @@ test("rebuild prunes a set whose products are gone", async () => {
   });
   expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 1, pruned: 1 });
   expect((await t.query(api.cards.sets, {})).map((s) => s.slug)).toEqual(["op-01"]);
+});
+
+// The first sync after this code deploys meets card_sets rows written before
+// sets carried a date. The rebuild has to see a field the stored row lacks.
+test("a rebuild adds a release date to a set row stored without one", async () => {
+  const t = await seed();
+  const dated = await t.run(async (ctx) => {
+    const rows = (await ctx.db.query("products").collect()).filter((p) => p.release_date !== undefined);
+    for (const p of rows) await ctx.db.patch(p._id, { release_date: undefined });
+    return rows.map((p) => ({ id: p._id, release_date: p.release_date! }));
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  expect((await t.query(api.cards.sets, {})).find((s) => s.slug === "op-01")?.releaseDate).toBeNull();
+
+  await t.run(async (ctx) => {
+    for (const p of dated) await ctx.db.patch(p.id, { release_date: p.release_date });
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  const op01 = (await t.query(api.cards.sets, {})).find((s) => s.slug === "op-01");
+  expect(op01?.releaseDate).toBe("2022-12-02");
+  expect(op01?.releaseSite).toBe("en");
 });
 
 test("a set's own numbers lead; cards from other sets follow", async () => {

@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { CardSetRow } from "@/convex/cards";
-import { Notice, SET_KIND_HEADING } from "./ui";
+import { Notice, releaseLabel, SET_KIND_HEADING } from "./ui";
 
 // Providers mounts Convex only when NEXT_PUBLIC_CONVEX_URL is set, and the
 // hooks below throw without it, so the check has to sit above them.
@@ -35,7 +35,8 @@ function ConnectedIndex() {
   return (
     <div className="flex flex-col gap-8">
       <p className="text-sm text-muted-foreground">
-        Release dates aren&apos;t in the database yet, so each group lists the newest set code first.
+        Newest release first in each group, by the English release date. A set with no English release
+        shows its Japanese date, marked JP.
       </p>
       {sections.map((section) => (
         <section key={section.kind}>
@@ -54,6 +55,7 @@ function ConnectedIndex() {
 }
 
 function SetRow({ set }: { set: CardSetRow }) {
+  const released = releaseLabel(set, "month");
   return (
     <Link
       href={`/cards/set/${set.slug}`}
@@ -63,6 +65,12 @@ function SetRow({ set }: { set: CardSetRow }) {
         <span className="block truncate text-sm font-medium">{set.title}</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {set.cardCount} card{set.cardCount === 1 ? "" : "s"}
+          {released && (
+            <>
+              {" · "}
+              <span className="whitespace-nowrap">{released}</span>
+            </>
+          )}
         </span>
       </span>
       {set.code && (

@@ -78,3 +78,48 @@ describe("groupProducts", () => {
     expect(groups.find((g) => g.slug === "family")?.title).toBe("Family deck sets");
   });
 });
+
+describe("groupProducts by release date", () => {
+  const dated = (site: ProductInput["site"], code: string, kind: ProductInput["kind"], release_date?: string) => ({
+    ...product(site, code, `[${code}]`, kind),
+    ...(release_date ? { release_date } : {}),
+  });
+  const groups = groupProducts([
+    // en and jp disagree; en wins even when jp is later.
+    dated("en", "OP-09", "booster", "2024-12-13"),
+    dated("jp", "OP-09", "booster", "2024-11-30"),
+    // en and jp disagree the other way.
+    dated("en", "OP-10", "booster", "2025-03-21"),
+    dated("jp", "OP-10", "booster", "2025-03-29"),
+    // jp only: its date stands in, marked jp.
+    dated("jp", "OP-11", "booster", "2025-05-31"),
+    dated("asia-en", "OP-11", "booster", "2025-05-31"),
+    // en row without a date: jp's date stands in.
+    dated("en", "OP-12", "booster"),
+    dated("jp", "OP-12", "booster", "2025-08-22"),
+    // No date anywhere: after the dated sets, by code.
+    dated("asia-en", "OP-14", "booster"),
+    dated("asia-en", "OP-13", "booster"),
+    // A partial date reads as undated, on en and on the jp fallback alike.
+    dated("en", "OP-08", "booster", "2026"),
+    dated("jp", "OP-08", "booster", "2026-12"),
+    // A starter dated later than every booster stays in its own kind.
+    dated("en", "ST-29", "starter", "2026-01-16"),
+    product("en", undefined, "Promotion card", "promo_bucket"),
+  ]);
+
+  test("newest date first within a kind, undated after, kinds unchanged", () => {
+    expect(groups.map((g) => g.slug)).toEqual(["op-12", "op-11", "op-10", "op-09", "op-14", "op-13", "op-08", "st-29", "promo"]);
+  });
+
+  test("the date is en's, or jp's when en has no dated product for the code", () => {
+    const by = (slug: string) => groups.find((g) => g.slug === slug);
+    expect(by("op-09")).toMatchObject({ release_date: "2024-12-13", release_site: "en" });
+    expect(by("op-10")).toMatchObject({ release_date: "2025-03-21", release_site: "en" });
+    expect(by("op-11")).toMatchObject({ release_date: "2025-05-31", release_site: "jp" });
+    expect(by("op-12")).toMatchObject({ release_date: "2025-08-22", release_site: "jp" });
+    expect(by("op-14")).toMatchObject({ release_date: null, release_site: null });
+    expect(by("op-08")).toMatchObject({ release_date: null, release_site: null });
+    expect(by("promo")).toMatchObject({ release_date: null, release_site: null });
+  });
+});

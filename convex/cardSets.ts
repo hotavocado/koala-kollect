@@ -15,7 +15,7 @@ export const listProducts = internalQuery({
   args: {},
   handler: async (ctx): Promise<ProductInput[]> => {
     const products = await ctx.db.query("products").collect();
-    return products.map(({ key, site, code, name, kind }) => ({ key, site, code, name, kind }));
+    return products.map(({ key, site, code, name, kind, release_date }) => ({ key, site, code, name, kind, release_date }));
   },
 });
 
@@ -34,6 +34,8 @@ const setGroup = v.object({
   ),
   title: v.string(),
   product_keys: v.array(v.string()),
+  release_date: v.union(v.string(), v.null()),
+  release_site: v.union(v.literal("en"), v.literal("jp"), v.null()),
   order: v.number(),
 });
 
@@ -58,8 +60,14 @@ export const upsertSet = internalMutation({
       }
     }
 
-    const { code, ...rest } = group;
-    const row = { ...rest, ...(code === null ? {} : { code }), card_count: cards.size };
+    const { code, release_date, release_site, ...rest } = group;
+    const row = {
+      ...rest,
+      ...(code === null ? {} : { code }),
+      ...(release_date === null ? {} : { release_date }),
+      ...(release_site === null ? {} : { release_site }),
+      card_count: cards.size,
+    };
     const existing = await ctx.db
       .query("card_sets")
       .withIndex("by_slug", (q) => q.eq("slug", group.slug))
