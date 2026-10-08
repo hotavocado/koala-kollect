@@ -12,6 +12,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
+    # A manual dispatch can pick any branch or tag; only main reaches prod.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
