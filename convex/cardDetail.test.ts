@@ -78,56 +78,52 @@ describe("cards.detail", () => {
         effect: "[DON!! x1] [Your Turn] All of your Characters gain +1000 power.",
         trigger: null,
       },
-      imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png",
+      // The fixture's base printing, not the parallel: the face is a base.
+      imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png",
       officialUrl: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
     });
-    expect(card?.regions).toEqual([
-      {
-        site: "en",
-        listUrl: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
-        printings: [
-          {
-            key: "prt_000000000001",
-            rarity: "L",
-            variant: "parallel",
-            imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png",
-            sourceText: "-ROMANCE DAWN- [OP-01]",
-            imageIds: ["OP01-001_p1"],
-            // The fixture lists the printing under a series page whose
-            // product row is not in the fixture, and the listing is closed.
-            // Both survive: the page shows what is known, not nothing.
-            listings: [
-              {
-                productKey: "en:569101",
-                code: null,
-                name: null,
-                nameEn: null,
-                releaseDate: null,
-                removedAt: T,
-              },
-            ],
-            claims: [
-              {
-                key: "ev_0123456789abcdef",
-                source: "official_event",
-                sourceUrl: "https://en.onepiece-cardgame.com/events/2025/store_tournament_vol4.php",
-                quote: "Participation Pack 2025 Vol.4 (4 types)",
-                confidence: "authoritative",
-                distribution: {
-                  name: "Store Tournament Vol.4",
-                  nameNative: null,
-                  kind: "store_tournament",
-                  region: "en",
-                  tier: "participant",
-                  startsOn: "2025",
-                  endsOn: null,
-                },
-              },
-            ],
-          },
-        ],
-      },
+    expect(card?.regions.map((r) => [r.site, r.listUrl])).toEqual([
+      ["en", "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
     ]);
+    expect(card?.regions[0].printings.find((p) => p.key === "prt_000000000001")).toEqual({
+      key: "prt_000000000001",
+      rarity: "L",
+      variant: "parallel",
+      imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png",
+      sourceText: "-ROMANCE DAWN- [OP-01]",
+      imageIds: ["OP01-001_p1"],
+      // The fixture lists the printing under a series page whose
+      // product row is not in the fixture, and the listing is closed.
+      // Both survive: the page shows what is known, not nothing.
+      listings: [
+        {
+          productKey: "en:569101",
+          code: null,
+          name: null,
+          nameEn: null,
+          releaseDate: null,
+          removedAt: T,
+        },
+      ],
+      claims: [
+        {
+          key: "ev_0123456789abcdef",
+          source: "official_event",
+          sourceUrl: "https://en.onepiece-cardgame.com/events/2025/store_tournament_vol4.php",
+          quote: "Participation Pack 2025 Vol.4 (4 types)",
+          confidence: "authoritative",
+          distribution: {
+            name: "Store Tournament Vol.4",
+            nameNative: null,
+            kind: "store_tournament",
+            region: "en",
+            tier: "participant",
+            startsOn: "2025",
+            endsOn: null,
+          },
+        },
+      ],
+    });
   });
 
   test("a DON card reads its gold printing under tcgcsv with an empty provenance string", async () => {
@@ -158,12 +154,15 @@ describe("cards.detail", () => {
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
     expect(card?.regions.map((r) => [r.site, r.printings.map((p) => p.key)])).toEqual([
-      ["en", ["prt_00000000000d", "prt_000000000001"]],
+      // The fixture's own en printings ride along. With no locator, a printing
+      // ties on image id and falls back to key; prt_..2 carries the fixture's
+      // cn:6987 locator, so it sorts after the unlocated parallel prt_..3.
+      ["en", ["prt_000000000004", "prt_00000000000d", "prt_000000000003", "prt_000000000002", "prt_000000000001"]],
       ["asia-en", ["prt_00000000000c"]],
       ["jp", ["prt_00000000000b", "prt_00000000000a"]],
     ]);
     // The face is a base printing, English first, as on the browse grid.
-    expect(card?.imageUrl).toBe("https://example.test/en/prt_00000000000d.png");
+    expect(card?.imageUrl).toBe("https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png");
   });
 
   test("each site with a searchable list links to it; cn does not", async () => {
@@ -296,11 +295,13 @@ describe("cards.detail", () => {
   test("a superseded observation's text is never shown", async () => {
     const t = await seeded();
     await t.run(async (ctx) => {
+      // The fixture carries two en observations of this card; close both.
       const en = await ctx.db
         .query("card_observations")
         .withIndex("by_card_site", (q) => q.eq("card_key", ZORO).eq("site", "en"))
-        .unique();
-      await ctx.db.patch(en!._id, { superseded_at: T });
+        .collect();
+      expect(en).toHaveLength(2);
+      for (const o of en) await ctx.db.patch(o._id, { superseded_at: T });
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
     expect(card?.text).toBeNull();
