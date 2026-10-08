@@ -36,6 +36,7 @@ const attribute = v.union(
   v.literal("ranged"),
   v.literal("special"),
   v.literal("wisdom"),
+  v.literal("?"), // printed in place of an attribute (OP13-079 Imu)
 );
 const category = v.union(
   v.literal("leader"),
@@ -92,7 +93,7 @@ export default defineSchema({
     effect: v.optional(v.string()),
     trigger: v.optional(v.string()),
     first_seen_at: v.string(),
-    last_seen_at: v.string(),
+    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
     superseded_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])
@@ -118,8 +119,11 @@ export default defineSchema({
     ),
     image_url: v.string(), // official URL, linked, never re-hosted
     source_text: v.string(), // the verbatim provenance string
+    // As printed on this printing on this site: a number, "X" (never rotates
+    // out of standard), or null where the site prints none.
+    block_icon: v.optional(v.union(v.number(), v.literal("X"), v.null())),
     first_seen_at: v.string(),
-    last_seen_at: v.string(),
+    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_card", ["card_key"])
@@ -135,7 +139,7 @@ export default defineSchema({
     suffix_family: v.optional(v.union(v.literal("p"), v.literal("r"))),
     suffix_n: v.optional(v.number()),
     first_seen_at: v.string(),
-    last_seen_at: v.string(),
+    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_printing", ["printing_key"]),
@@ -160,7 +164,7 @@ export default defineSchema({
     release_date: v.optional(v.string()), // YYYY, YYYY-MM or YYYY-MM-DD
     product_url: v.optional(v.string()),
     first_seen_at: v.string(),
-    last_seen_at: v.string(),
+    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
   })
     .index("by_key", ["key"])
     .index("by_site", ["site"]),
@@ -172,7 +176,7 @@ export default defineSchema({
     printing_key: v.string(),
     product_key: v.string(),
     first_seen_at: v.string(),
-    last_seen_at: v.string(),
+    last_seen_at: v.optional(v.string()), // deprecated in the contract, refused once the ingest stops writing it
     removed_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])
