@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { rebuildCardSets } from "./cardSets";
 import {
   type Manifest,
   type SyncRecord,
@@ -154,6 +155,9 @@ export const run = internalAction({
           upserted += r.inserted + r.updated;
         }
       }
+      // Inside the try so a failed rebuild closes the sync "failed" and the
+      // next run retries the commit; an "ok" commit is never revisited.
+      await rebuildCardSets(ctx);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       await ctx.runMutation(internal.dataSync.finish, { syncId, status: "failed", refusal: message, upserted });

@@ -74,31 +74,129 @@ export const browse = query({
     // by_number puts numbered cards in card-number order. DON cards have no
     // number, so they sort before every numbered card.
     const page = await ctx.db.query("cards").withIndex("by_number").paginate(paginationOpts);
-    const rows: BrowseCard[] = await Promise.all(
-      page.page.map(async (card) => {
-        const [observations, printings] = await Promise.all([
-          ctx.db
-            .query("card_observations")
-            .withIndex("by_card_site", (q) => q.eq("card_key", card.key))
-            .collect(),
-          ctx.db
-            .query("printings")
-            .withIndex("by_card", (q) => q.eq("card_key", card.key))
-            .collect(),
-        ]);
-        return {
-          key: card.key,
-          number: card.number ?? null,
-          donDesign: card.don_design ?? null,
-          category: card.category,
-          colors: card.colors,
-          name: pickName(observations),
-          imageUrl: rankPrintings(printings)[0]?.image_url ?? null,
-          printings: printings.length,
-        };
-      }),
-    );
+    const rows: BrowseCard[] = await Promise.all(page.page.map((card) => browseRow(ctx, card)));
     return { ...page, page: rows };
+  },
+});
+
+// One tile's worth of a card: the shown name, the best image, the printing count.
+// imageFrom narrows the tile image to the printings a set lists, so a reprint
+// or parallel shows the art that set carries rather than the card's base art.
+async function browseRow(
+  ctx: QueryCtx,
+  card: Doc<"cards">,
+  imageFrom?: Doc<"printings">[],
+): Promise<BrowseCard> {
+  const [observations, printings] = await Promise.all([
+    ctx.db
+      .query("card_observations")
+      .withIndex("by_card_site", (q) => q.eq("card_key", card.key))
+      .collect(),
+    ctx.db
+      .query("printings")
+      .withIndex("by_card", (q) => q.eq("card_key", card.key))
+      .collect(),
+  ]);
+  return {
+    key: card.key,
+    number: card.number ?? null,
+    donDesign: card.don_design ?? null,
+    category: card.category,
+    colors: card.colors,
+    name: pickName(observations),
+    imageUrl: rankPrintings(imageFrom?.length ? imageFrom : printings)[0]?.image_url ?? null,
+    printings: printings.length,
+  };
+}
+
+// The set index: one row per product code across sites, plus the promotion,
+// limited and family buckets, in card_sets order (kind, then newest code).
+export type CardSetRow = {
+  slug: string;
+  code: string | null;
+  kind: Doc<"card_sets">["kind"];
+  title: string;
+  cardCount: number;
+};
+
+function setRow(set: Doc<"card_sets">): CardSetRow {
+  return { slug: set.slug, code: set.code ?? null, kind: set.kind, title: set.title, cardCount: set.card_count };
+}
+
+export const sets = query({
+  args: {},
+  handler: async (ctx): Promise<CardSetRow[]> => {
+    const rows = await ctx.db.query("card_sets").withIndex("by_order").collect();
+    return rows.map(setRow);
+  },
+});
+
+// One set's cards in card-number order. The biggest set (promotion cards
+// across four sites) reads about ten thousand documents, inside the limit.
+// The card-number prefixes a set prints under its own code: OP-10 prints
+// OP10-xxx, and en's combined OP14-EB04 prints both OP14-xxx and EB04-xxx.
+// Anything else listed under the set (SP and reprint cards) comes from another set.
+export function ownPrefixes(code: string | null): string[] {
+  if (code === null) return [];
+  return /^[A-Z]+-\d+$/.test(code) ? [code.replace("-", "")] : code.split("-");
+}
+
+export const setCards = query({
+  args: { slug: v.string() },
+  handler: async (
+    ctx,
+    { slug },
+  ): Promise<{ set: CardSetRow; cards: BrowseCard[]; fromOtherSets: BrowseCard[] } | null> => {
+    const set = await ctx.db
+      .query("card_sets")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    if (!set) return null;
+
+    const linked = new Map<string, Doc<"printings">[]>();
+    for (const productKey of set.product_keys) {
+      const links = await ctx.db
+        .query("printing_products")
+        .withIndex("by_product", (q) => q.eq("product_key", productKey))
+        .collect();
+      const printings = await Promise.all(
+        links
+          .filter((l) => l.removed_at === undefined)
+          .map((l) =>
+            ctx.db
+              .query("printings")
+              .withIndex("by_key", (q) => q.eq("key", l.printing_key))
+              .unique(),
+          ),
+      );
+      for (const p of printings) if (p) linked.set(p.card_key, [...(linked.get(p.card_key) ?? []), p]);
+    }
+
+    const cards = await Promise.all(
+      [...linked.keys()].map((key) =>
+        ctx.db
+          .query("cards")
+          .withIndex("by_key", (q) => q.eq("key", key))
+          .unique(),
+      ),
+    );
+    const rows = await Promise.all(cards.flatMap((c) => (c ? [browseRow(ctx, c, linked.get(c.key))] : [])));
+    // Numbered cards by number (numeric, so -9 before -10), then DON by design.
+    rows.sort(
+      (a, b) =>
+        (a.number === null ? 1 : 0) - (b.number === null ? 1 : 0) ||
+        (a.number ?? a.donDesign ?? "").localeCompare(b.number ?? b.donDesign ?? "", "en", { numeric: true }) ||
+        a.key.localeCompare(b.key),
+    );
+    // A set with no code (the promotion buckets) has no own prefix, so all its
+    // cards stay in the main list. So does a set made mostly of other sets'
+    // cards (PRB-01 prints one card of its own and reprints 110): splitting it
+    // would leave a near-empty main list.
+    const own = ownPrefixes(set.code ?? null);
+    const isOwn = (c: BrowseCard) => own.length === 0 || own.includes(c.number?.split("-")[0] ?? "");
+    const ownCards = rows.filter(isOwn);
+    if (ownCards.length * 2 < rows.length) return { set: setRow(set), cards: rows, fromOtherSets: [] };
+    return { set: setRow(set), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)) };
   },
 });
 
