@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as cardSets from "../cardSets.js";
+import type * as cardSetsCore from "../cardSetsCore.js";
 import type * as cards from "../cards.js";
 import type * as crons from "../crons.js";
 import type * as dataSync from "../dataSync.js";
@@ -20,6 +22,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  cardSets: typeof cardSets;
+  cardSetsCore: typeof cardSetsCore;
   cards: typeof cards;
   crons: typeof crons;
   dataSync: typeof dataSync;

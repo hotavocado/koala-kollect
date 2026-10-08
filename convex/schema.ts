@@ -7,7 +7,8 @@ import { v } from "convex/values";
 // JSON contract exactly, and references are the contract's string keys, never
 // v.id(), so a row can be upserted without knowing any other table's _id.
 //
-// The one app-only table here is data_syncs.
+// The app-only tables here are data_syncs and card_sets, which is derived from
+// the mirror after each sync.
 
 const site = v.union(
   v.literal("en"),
@@ -269,4 +270,28 @@ export default defineSchema({
     refusal: v.optional(v.string()), // e.g. "sha256 mismatch on data/printings/jp.jsonl"
     upserted: v.optional(v.number()),
   }).index("by_started_at", ["started_at"]),
+
+  // App-only, derived: the set index. One row per product code across sites,
+  // plus one per code-less bucket kind. Rebuilt by cardSets.rebuild after each
+  // sync; card_count is the distinct cards listed under the set's products.
+  card_sets: defineTable({
+    slug: v.string(), // op-10, op14-eb04, promo
+    code: v.optional(v.string()),
+    kind: v.union(
+      v.literal("booster"),
+      v.literal("extra"),
+      v.literal("premium"),
+      v.literal("starter"),
+      v.literal("promo"),
+      v.literal("limited"),
+      v.literal("family"),
+      v.literal("other"),
+    ),
+    title: v.string(),
+    product_keys: v.array(v.string()),
+    card_count: v.number(),
+    order: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_order", ["order"]),
 });

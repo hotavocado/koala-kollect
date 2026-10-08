@@ -35,6 +35,18 @@ export function cardLabel(card: {
   return card.number ?? "Unnamed card";
 }
 
+// Section headings on the set index, one per card_sets kind.
+export const SET_KIND_HEADING: Record<Doc<"card_sets">["kind"], string> = {
+  booster: "Booster packs",
+  extra: "Extra boosters",
+  premium: "Premium boosters",
+  starter: "Starter decks",
+  promo: "Promotions",
+  limited: "Limited products",
+  family: "Family decks",
+  other: "Other",
+};
+
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg bg-layer-1 p-6">

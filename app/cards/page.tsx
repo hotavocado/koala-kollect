@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CardBrowser } from "./card-browser";
+import { SetIndex } from "./set-index";
 import { ImageCredit } from "./ui";
 
 export const metadata: Metadata = {
   title: "Cards · Koala Kollect",
-  description: "Browse every One Piece Card Game card in the Koala Kollect database.",
+  description: "Every One Piece Card Game set, starter deck and promotion in the Koala Kollect database.",
 };
 
 export default function CardsPage() {
@@ -19,7 +19,7 @@ export default function CardsPage() {
       <main className="container flex-1 pb-12 pt-4">
         <h1 className="text-3xl font-semibold">Cards</h1>
         <div className="mt-6">
-          <CardBrowser />
+          <SetIndex />
         </div>
       </main>
       <ImageCredit />
