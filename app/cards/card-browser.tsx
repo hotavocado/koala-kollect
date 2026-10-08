@@ -4,7 +4,7 @@ import { usePaginatedQuery, useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { BrowseCard } from "@/convex/cards";
-import { ColorDots, Notice } from "./ui";
+import { cardLabel, ColorDots, Notice } from "./ui";
 
 const PAGE_SIZE = 24;
 
@@ -79,7 +79,7 @@ function EmptyDatabase() {
 }
 
 function CardTile({ card }: { card: BrowseCard }) {
-  const label = card.name ?? (card.category === "don" ? "DON!!" : (card.number ?? "Unnamed card"));
+  const label = cardLabel(card);
   // A text face, not the image: the official image hosts send
   // Cross-Origin-Resource-Policy: same-site, so every browser refuses to load
   // them here. card.imageUrl stays in the data as the image's locator.

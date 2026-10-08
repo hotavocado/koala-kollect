@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { ColorDots, Notice } from "../ui";
+import { cardLabel, ColorDots, Notice } from "../ui";
 
 const SITE_LABEL: Record<CardRegion["site"], string> = {
   en: "English",
@@ -69,12 +69,8 @@ function ConnectedDetail({ cardKey }: { cardKey: string }) {
   return <Detail card={card} />;
 }
 
-function cardLabel(card: CardDetail): string {
-  return card.text?.name ?? (card.category === "don" ? "DON!!" : (card.number ?? "Unnamed card"));
-}
-
 function Detail({ card }: { card: CardDetail }) {
-  const label = cardLabel(card);
+  const label = cardLabel({ ...card, name: card.text?.name ?? null });
   const total = card.regions.reduce((n, r) => n + r.printings.length, 0);
   const stats = (
     [

@@ -14,6 +14,7 @@ const NAME_SITE_ORDER: Doc<"card_observations">["site"][] = ["en", "asia-en", "j
 export type BrowseCard = {
   key: string;
   number: string | null;
+  donDesign: string | null;
   category: Doc<"cards">["category"];
   colors: Doc<"cards">["colors"];
   name: string | null;
@@ -88,6 +89,7 @@ export const browse = query({
         return {
           key: card.key,
           number: card.number ?? null,
+          donDesign: card.don_design ?? null,
           category: card.category,
           colors: card.colors,
           name: pickName(observations),
@@ -190,6 +192,7 @@ export type CardRegion = {
 export type CardDetail = {
   key: string;
   number: string | null;
+  donDesign: string | null;
   category: Doc<"cards">["category"];
   colors: Doc<"cards">["colors"];
   cost: number | null;
@@ -348,6 +351,7 @@ export const detail = query({
     return {
       key: card.key,
       number: card.number ?? null,
+      donDesign: card.don_design ?? null,
       category: card.category,
       colors: card.colors,
       cost: card.cost ?? null,

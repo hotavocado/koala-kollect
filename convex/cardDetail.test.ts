@@ -133,7 +133,13 @@ describe("cards.detail", () => {
   test("a DON card reads its gold printing under tcgcsv with an empty provenance string", async () => {
     const t = await seeded();
     const card = await t.query(api.cards.detail, { key: DON });
-    expect(card).toMatchObject({ category: "don", number: null, text: null, officialUrl: null });
+    expect(card).toMatchObject({
+      category: "don",
+      number: null,
+      donDesign: "OP-01:monkey-d-luffy",
+      text: null,
+      officialUrl: null,
+    });
     expect(card?.regions).toHaveLength(1);
     expect(card?.regions[0]).toMatchObject({
       site: "tcgcsv",

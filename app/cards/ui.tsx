@@ -17,6 +17,24 @@ export function ColorDots({ colors }: { colors: Doc<"cards">["colors"] }) {
   ));
 }
 
+// What to call a card. DON cards have no number and no printed name, so the
+// design's art slug ("OP-01:monkey-d-luffy") is what tells them apart.
+export function cardLabel(card: {
+  name: string | null;
+  category: Doc<"cards">["category"];
+  number: string | null;
+  donDesign: string | null;
+}): string {
+  if (card.name) return card.name;
+  if (card.category === "don") {
+    const slug = card.donDesign?.split(":")[1];
+    if (!slug) return "DON!!";
+    const art = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    return `DON!! ${art}`;
+  }
+  return card.number ?? "Unnamed card";
+}
+
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg bg-layer-1 p-6">

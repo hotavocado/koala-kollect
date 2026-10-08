@@ -73,6 +73,7 @@ describe("cards.browse", () => {
       {
         key: zoro.key,
         number: "OP01-001",
+        donDesign: null,
         category: "leader",
         colors: ["red"],
         name: "Roronoa Zoro",
@@ -108,7 +109,12 @@ describe("cards.browse", () => {
       });
     });
     const res = await t.query(api.cards.browse, { paginationOpts: PAGE });
-    expect(res.page[0]).toMatchObject({ category: "don", number: null, name: null });
+    expect(res.page[0]).toMatchObject({
+      category: "don",
+      number: null,
+      donDesign: "OP-01:monkey-d-luffy",
+      name: null,
+    });
   });
 });
 
