@@ -47,6 +47,7 @@ function printing(key: string, site: "en" | "asia-en" | "jp" | "tc" | "cn", vari
     variant,
     image_url: `https://example.test/${site}/${key}.png`,
     source_text: `${site} source ${key}`,
+    block_icon: null,
     first_seen_at: T,
   };
 }
