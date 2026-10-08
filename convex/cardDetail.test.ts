@@ -157,6 +157,32 @@ describe("cards.detail", () => {
     expect(card?.imageUrl).toBe("https://example.test/en/prt_00000000000d.png");
   });
 
+  test("parallels read in image id order, numerically, not by key", async () => {
+    const t = await seeded();
+    await t.run(async (ctx) => {
+      // Keys sort a, b, c; image ids must put c (_p2) before b (_p3) before a (_p10).
+      const ids: [string, string][] = [
+        ["prt_0000000000aa", "OP01-001_p10"],
+        ["prt_0000000000bb", "OP01-001_p3"],
+        ["prt_0000000000cc", "OP01-001_p2"],
+      ];
+      for (const [key, imageId] of ids) {
+        await ctx.db.insert("printings", printing(key, "jp", "parallel"));
+        await ctx.db.insert("printing_locators", {
+          key: `jp:${imageId}`,
+          printing_key: key,
+          site: "jp",
+          image_id: imageId,
+          first_seen_at: T,
+          last_seen_at: T,
+        });
+      }
+    });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    const jp = card?.regions.find((r) => r.site === "jp");
+    expect(jp?.printings.map((p) => p.imageIds[0])).toEqual(["OP01-001_p2", "OP01-001_p3", "OP01-001_p10"]);
+  });
+
   test("current listings lead and the strongest claim comes first", async () => {
     const t = await seeded();
     await t.run(async (ctx) => {

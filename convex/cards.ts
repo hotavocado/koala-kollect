@@ -319,19 +319,25 @@ export const detail = query({
         .collect(),
     ]);
 
-    const sorted = [...printings].sort(
+    const loaded = await Promise.all(
+      printings.map(async (p) => ({ site: p.site, printing: await loadPrinting(ctx, p) })),
+    );
+    // Within a site and variant, image id order (numeric, so _p2 before _p10)
+    // is the order the card list itself uses; the key is a hash and reads as
+    // random.
+    loaded.sort(
       (a, b) =>
         rank(REGION_ORDER, a.site) - rank(REGION_ORDER, b.site) ||
-        rank(VARIANT_ORDER, a.variant) - rank(VARIANT_ORDER, b.variant) ||
-        a.key.localeCompare(b.key),
+        rank(VARIANT_ORDER, a.printing.variant) - rank(VARIANT_ORDER, b.printing.variant) ||
+        (a.printing.imageIds[0] ?? "").localeCompare(b.printing.imageIds[0] ?? "", "en", { numeric: true }) ||
+        a.printing.key.localeCompare(b.printing.key),
     );
-    const loaded = await Promise.all(sorted.map((p) => loadPrinting(ctx, p)));
     const regions: CardRegion[] = [];
-    sorted.forEach((p, i) => {
+    for (const { site, printing } of loaded) {
       const last = regions[regions.length - 1];
-      if (last?.site === p.site) last.printings.push(loaded[i]);
-      else regions.push({ site: p.site, printings: [loaded[i]] });
-    });
+      if (last?.site === site) last.printings.push(printing);
+      else regions.push({ site, printings: [printing] });
+    }
 
     const obs = pickObservation(observations);
     return {
