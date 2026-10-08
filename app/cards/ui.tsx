@@ -59,7 +59,7 @@ export const SET_KIND_LABEL: Record<Doc<"card_sets">["kind"], string> = {
   other: "Other",
 };
 
-// A set's release date as the index and the set page show it. The date is a
+// A release date as the index, the set page and the card page show it. It is a
 // calendar day with no zone, so it formats in UTC and a viewer west of UTC
 // doesn't see the day before. The index reads months, so a row stays on one
 // line at phone width; the set page carries the day. A date taken from the

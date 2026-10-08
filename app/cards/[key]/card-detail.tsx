@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
 import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { cardLabel, ColorDots, Notice } from "../ui";
+import { cardLabel, ColorDots, Notice, releaseLabel } from "../ui";
 
 const SITE_LABEL: Record<CardRegion["site"], string> = {
   en: "English",
@@ -225,10 +225,12 @@ function PrintingRow({ printing: p, site }: { printing: CardPrinting; site: Card
 function ListingLine({ listing: l }: { listing: CardListing }) {
   // A listing whose product row has not synced still shows, by its series id.
   const name = l.nameEn ?? l.name ?? `Series ${l.productKey.split(":")[1] ?? l.productKey}`;
+  // The product is one site's own, so its date needs no JP mark.
+  const released = releaseLabel({ releaseDate: l.releaseDate, releaseSite: null }, "day");
   return (
     <span className={l.removedAt ? "text-muted-foreground" : undefined}>
       {[l.code, name].filter(Boolean).join(" ")}
-      {l.releaseDate && <span className="text-muted-foreground"> · {l.releaseDate}</span>}
+      {released && <span className="text-muted-foreground"> · {released}</span>}
       {l.removedAt && <span> · no longer listed</span>}
     </span>
   );
