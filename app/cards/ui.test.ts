@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cardLabel, handoutWhen, partialDate, releaseLabel } from "./ui";
+import { cardLabel, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
 
 describe("cardLabel", () => {
   const base = { name: null, number: null, donDesign: null };
@@ -63,5 +63,27 @@ describe("handoutWhen", () => {
     expect(partialDate("spring 2025")).toBe("spring 2025");
     expect(partialDate("2025-02-31", "en-US")).toBe("2025-02-31");
     expect(partialDate("2025-13", "en-US")).toBe("2025-13");
+  });
+});
+
+describe("quantityNoteShown", () => {
+  const pack = "Online Regional Participation Pack Vol.1 x1";
+
+  test("a note that only repeats the quote is not shown", () => {
+    expect(quantityNoteShown(pack, pack)).toBeNull();
+  });
+
+  test("case and spacing alone do not make a note new", () => {
+    expect(quantityNoteShown("online regional participation pack vol.1 x1", ` ${pack}  `)).toBeNull();
+    expect(quantityNoteShown("Online Regional  Participation Pack Vol.1 x1", pack)).toBeNull();
+  });
+
+  test("a note that says something the quote does not is shown", () => {
+    expect(quantityNoteShown("1 per pack", pack)).toBe("1 per pack");
+  });
+
+  test("no note, nothing shown", () => {
+    expect(quantityNoteShown(null, pack)).toBeNull();
+    expect(quantityNoteShown("  ", pack)).toBeNull();
   });
 });

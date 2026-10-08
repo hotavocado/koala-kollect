@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
 import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { cardLabel, ColorDots, handoutWhen, Notice, releaseLabel } from "../ui";
+import { cardLabel, ColorDots, handoutWhen, Notice, quantityNoteShown, releaseLabel } from "../ui";
 
 const SITE_LABEL: Record<CardRegion["site"], string> = {
   en: "English",
@@ -281,6 +281,7 @@ function ClaimLine({ claim: c }: { claim: CardClaim }) {
     handoutWhen(c.startsOn, c.endsOn),
   ].filter(Boolean);
   const inferred = c.confidence === "inferred";
+  const note = quantityNoteShown(c.quantityNote, c.quote);
   return (
     // An inferred claim is set apart, so it never reads as settled.
     <div
@@ -288,7 +289,7 @@ function ClaimLine({ claim: c }: { claim: CardClaim }) {
     >
       <span className="font-medium">{d ? d.name : "A source not yet in the database"}</span>
       {facts.length > 0 && <span className="text-muted-foreground">{facts.join(" · ")}</span>}
-      {c.quantityNote && <span className="text-muted-foreground">{c.quantityNote}</span>}
+      {note && <span className="text-muted-foreground">{note}</span>}
       <span className="break-words">“{c.quote}”</span>
       <span className="text-xs text-muted-foreground">
         {CONFIDENCE_LABEL[c.confidence] && (

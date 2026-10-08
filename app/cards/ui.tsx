@@ -101,6 +101,14 @@ export function handoutWhen(startsOn: string | null, endsOn: string | null, loca
   return null;
 }
 
+// A claim's quantity note is often the quote itself, word for word. The quote is the
+// source's own text, so it stays and a note that only repeats it is dropped.
+export function quantityNoteShown(note: string | null, quote: string): string | null {
+  const plain = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+  if (!note || !plain(note)) return null;
+  return plain(note) === plain(quote) ? null : note;
+}
+
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg bg-layer-1 p-6">
