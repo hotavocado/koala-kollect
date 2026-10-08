@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import { proxiedImageUrl } from "../app/cards/image";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { rebuildCardSets } from "./cardSets";
 import {
@@ -30,6 +31,7 @@ import {
 
 const DEFAULT_REPO = "hotavocado/koala-kollect-data";
 const BATCH_SIZE = 200;
+const UNPROXIED_KEYS_LISTED = 50;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 // A sync row still "running" after this long is treated as dead, not live.
 const RUNNING_TTL_MS = 30 * 60 * 1000;
@@ -143,10 +145,16 @@ export const run = internalAction({
     // an "ok" sync is skipped). Pass 1 has already proven the files, so what
     // remains is a network failure or a record the Convex schema rejects.
     let upserted = 0;
+    const unproxied: { key: string; site: string }[] = [];
     try {
       for (const [path, entry] of Object.entries(manifest.files)) {
         const records = await verifyFile(path, await fetchFile(commit, path), entry);
         const table = TYPE_TO_TABLE[entry.type];
+        if (entry.type === "printing") {
+          for (const r of records as Doc<"printings">[]) {
+            if (proxiedImageUrl(r.image_url) === null) unproxied.push({ key: r.key, site: r.site });
+          }
+        }
         for (let i = 0; i < records.length; i += BATCH_SIZE) {
           const r = await ctx.runMutation(internal.dataSync.upsertBatch, {
             table,
@@ -164,10 +172,32 @@ export const run = internalAction({
       return { status: "failed", data_commit: commit, detail: message };
     }
 
-    await ctx.runMutation(internal.dataSync.finish, { syncId, status: "ok", upserted });
-    return { status: "ok", data_commit: commit, detail: `${upserted} rows inserted or updated` };
+    const keys = unproxied.map((u) => u.key).sort();
+    const listed = keys.slice(0, UNPROXIED_KEYS_LISTED);
+    await ctx.runMutation(internal.dataSync.finish, {
+      syncId,
+      status: "ok",
+      upserted,
+      unproxied_images: keys.length,
+      ...(keys.length > 0 && { unproxied_image_keys: listed }),
+    });
+    return { status: "ok", data_commit: commit, detail: `${upserted} rows inserted or updated; ${unproxiedDetail(unproxied, listed)}` };
   },
 });
+
+// "2 printing images not proxied (en 1, tcgcsv 1): prt_a, prt_b". Split by
+// site so a site whose images are never proxied reads as a constant, and a
+// site that changes its image path stands out.
+function unproxiedDetail(unproxied: { site: string }[], listed: string[]): string {
+  const n = unproxied.length;
+  const head = `${n} printing ${n === 1 ? "image" : "images"} not proxied`;
+  if (n === 0) return head;
+  const bySite = new Map<string, number>();
+  for (const u of unproxied) bySite.set(u.site, (bySite.get(u.site) ?? 0) + 1);
+  const sites = [...bySite].sort(([a], [b]) => a.localeCompare(b)).map(([s, c]) => `${s} ${c}`);
+  const more = n > listed.length ? `, and ${n - listed.length} more` : "";
+  return `${head} (${sites.join(", ")}): ${listed.join(", ")}${more}`;
+}
 
 export const lastOk = internalQuery({
   args: {},
@@ -199,6 +229,8 @@ export const finish = internalMutation({
     status: v.union(v.literal("ok"), v.literal("refused"), v.literal("failed")),
     refusal: v.optional(v.string()),
     upserted: v.optional(v.number()),
+    unproxied_images: v.optional(v.number()),
+    unproxied_image_keys: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { syncId, ...fields }) => {
     await ctx.db.patch(syncId, { ...fields, finished_at: nowIso() });

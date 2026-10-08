@@ -286,6 +286,10 @@ export default defineSchema({
     status: v.union(v.literal("running"), v.literal("ok"), v.literal("refused"), v.literal("failed")),
     refusal: v.optional(v.string()), // e.g. "sha256 mismatch on data/printings/jp.jsonl"
     upserted: v.optional(v.number()),
+    // On an ok sync: printings in the commit whose image the proxy refuses
+    // (they show the text face), and the first 50 of their keys when non-zero.
+    unproxied_images: v.optional(v.number()),
+    unproxied_image_keys: v.optional(v.array(v.string())),
   }).index("by_started_at", ["started_at"]),
 
   // App-only, derived: the set index. One row per product code across sites,
