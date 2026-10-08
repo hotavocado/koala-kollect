@@ -83,8 +83,13 @@ export function partialDate(value: string, locale?: string): string {
   const m = value.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
   if (!m) return value;
   if (!m[2]) return m[1];
+  const iso = `${m[1]}-${m[2]}-${m[3] ?? "01"}`;
+  const date = new Date(`${iso}T00:00:00Z`);
+  // An impossible date (2025-02-31, 2025-13) would roll over or read
+  // "Invalid Date"; show what the source wrote instead.
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso) return value;
   const style: Intl.DateTimeFormatOptions = m[3] ? { dateStyle: "medium" } : { month: "short", year: "numeric" };
-  return new Date(`${m[1]}-${m[2]}-${m[3] ?? "01"}T00:00:00Z`).toLocaleDateString(locale, { timeZone: "UTC", ...style });
+  return date.toLocaleDateString(locale, { timeZone: "UTC", ...style });
 }
 
 export function handoutWhen(startsOn: string | null, endsOn: string | null, locale?: string): string | null {

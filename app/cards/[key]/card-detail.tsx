@@ -36,8 +36,9 @@ const SOURCE_LABEL: Record<CardClaim["source"], string> = {
   manual: "Added by hand",
 };
 
-const CONFIDENCE_LABEL: Record<CardClaim["confidence"], string> = {
-  authoritative: "Official",
+// An official claim's source link already says so, so it carries no label.
+const CONFIDENCE_LABEL: Record<CardClaim["confidence"], string | null> = {
+  authoritative: null,
   corroborated: "Corroborated",
   inferred: "Inferred, not yet confirmed",
 };
@@ -290,8 +291,12 @@ function ClaimLine({ claim: c }: { claim: CardClaim }) {
       {c.quantityNote && <span className="text-muted-foreground">{c.quantityNote}</span>}
       <span className="break-words">“{c.quote}”</span>
       <span className="text-xs text-muted-foreground">
-        <span className={inferred ? "font-medium text-foreground" : undefined}>{CONFIDENCE_LABEL[c.confidence]}</span>
-        {" · "}
+        {CONFIDENCE_LABEL[c.confidence] && (
+          <>
+            <span className={inferred ? "font-medium text-foreground" : undefined}>{CONFIDENCE_LABEL[c.confidence]}</span>
+            {" · "}
+          </>
+        )}
         <OfficialLink href={c.sourceUrl}>{SOURCE_LABEL[c.source]}</OfficialLink>
       </span>
     </div>

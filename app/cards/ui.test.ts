@@ -61,5 +61,7 @@ describe("handoutWhen", () => {
 
   test("a value outside the contract's formats is shown as written", () => {
     expect(partialDate("spring 2025")).toBe("spring 2025");
+    expect(partialDate("2025-02-31", "en-US")).toBe("2025-02-31");
+    expect(partialDate("2025-13", "en-US")).toBe("2025-13");
   });
 });
