@@ -1,0 +1,30 @@
+name: deploy-convex
+# Pushes convex/ (schema, functions, crons) to the production deployment on
+# every push to main, so prod tracks main. Agent seats do not deploy prod by
+# hand; this workflow is the path. CONVEX_DEPLOY_KEY is a production deploy key
+# scoped to that one deployment. The Next.js app deploys through Vercel.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy-convex
+  cancel-in-progress: false
+jobs:
+  deploy:
+    # A manual dispatch can pick any branch or tag; only main reaches prod.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Deploy to the production Convex deployment
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: npx convex deploy -y

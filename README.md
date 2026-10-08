@@ -13,10 +13,19 @@ shows an empty state until the data repo publishes its first card list.
 
 ## Deploy
 
-Vercel builds `main` on every push. **The deployed site reads the Convex DEV
-deployment** (`NEXT_PUBLIC_CONVEX_URL` on the Vercel project points at
-`shocking-vulture-461`), because there is no prod deployment yet. Cut a prod
-Convex deployment and repoint that variable before the event QR codes go out.
+Every push to `main` deploys twice:
+- Vercel builds the site.
+- `.github/workflows/deploy-convex.yml` runs typecheck and tests, then pushes
+  `convex/` to the production Convex deployment (`brainy-starling-43`) with the
+  `CONVEX_DEPLOY_KEY` repo secret. The daily card sync is a Convex cron, so it
+  ships with that push.
+
+`NEXT_PUBLIC_CONVEX_URL` on the Vercel project: Production reads the prod
+deployment, Preview reads dev (`shocking-vulture-461`). Dev is for clears,
+rebuilds and experiments; nothing public reads it.
+
+After a deploy that changes how sets are grouped, rebuild them once on the
+deployment that changed: `cardSets:rebuild`.
 
 ## Develop
 
