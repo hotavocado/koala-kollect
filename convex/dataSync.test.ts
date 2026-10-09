@@ -113,6 +113,94 @@ describe("dataSync.run", () => {
     expect(row.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  // A printing whose image the proxy refuses shows the text face, silently. The
+  // sync counts them over the whole commit, by site, so a site that changes its
+  // image path shows up in data_syncs rather than as grey cards.
+  describe("printing images the proxy refuses", () => {
+    function printingFiles(files: ReturnType<typeof fixtureFiles>) {
+      return Object.keys(files).filter((p) => files[p].type === "printing");
+    }
+
+    test("the fixture's tcgcsv DON printing is counted", async () => {
+      const t = convexTest(schema, modules);
+      serve({ [COMMIT_A]: await repoAt() });
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+      expect(r.detail).toMatch(/; 1 printing image not proxied \(tcgcsv 1\): prt_00000000d0d1$/);
+      expect((await syncs(t))[0]).toMatchObject({
+        unproxied_images: 1,
+        unproxied_image_keys: ["prt_00000000d0d1"],
+        unproxied_image_sites: [{ site: "tcgcsv", count: 1 }],
+      });
+    });
+
+    test("an official printing outside the file rule is counted under its site", async () => {
+      const t = convexTest(schema, modules);
+      const files = fixtureFiles();
+      const enPath = printingFiles(files).find((p) => p.endsWith("/en.jsonl"))!;
+      const prt = JSON.parse(files[enPath].lines[0]) as Rec;
+      prt.image_url = String(prt.image_url).replace(/\.png$/, ".jpg");
+      files[enPath].lines[0] = JSON.stringify(prt);
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+      expect(r.status).toBe("ok");
+      const keys = [prt.key, "prt_00000000d0d1"].sort();
+      expect(r.detail).toMatch(new RegExp(`; 2 printing images not proxied \\(en 1, tcgcsv 1\\): ${keys.join(", ")}$`));
+      expect((await syncs(t))[0]).toMatchObject({
+        unproxied_images: 2,
+        unproxied_image_keys: keys,
+        unproxied_image_sites: [
+          { site: "en", count: 1 },
+          { site: "tcgcsv", count: 1 },
+        ],
+      });
+    });
+
+    test("none refused: the count is 0 and no keys are stored", async () => {
+      const t = convexTest(schema, modules);
+      const files = fixtureFiles();
+      for (const p of printingFiles(files)) {
+        if (p.endsWith("/tcgcsv.jsonl")) delete files[p];
+      }
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+      expect(r.detail).toMatch(/; 0 printing images not proxied$/);
+      const [row] = await syncs(t);
+      expect(row.unproxied_images).toBe(0);
+      expect(row).not.toHaveProperty("unproxied_image_keys");
+      expect(row).not.toHaveProperty("unproxied_image_sites");
+    });
+
+    test("lists at most 50 keys and still counts them all", async () => {
+      const t = convexTest(schema, modules);
+      const files = fixtureFiles();
+      const enPath = printingFiles(files).find((p) => p.endsWith("/en.jsonl"))!;
+      const base = JSON.parse(files[enPath].lines[0]) as Rec;
+      for (let i = 0; i < 60; i++) {
+        const key = `prt_9999${String(i).padStart(8, "0")}`;
+        files[enPath].lines.push(JSON.stringify({ ...base, key, image_url: `https://example.com/${i}.png` }));
+      }
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+      expect(r.status).toBe("ok");
+      const [row] = await syncs(t);
+      expect(row.unproxied_images).toBe(61);
+      expect(row.unproxied_image_keys).toHaveLength(50);
+      expect(row.unproxied_image_sites).toEqual([
+        { site: "en", count: 60 },
+        { site: "tcgcsv", count: 1 },
+      ]);
+      expect(r.detail).toMatch(/; 61 printing images not proxied \(en 60, tcgcsv 1\): .+, and 11 more$/);
+    });
+  });
+
   test("skips a commit already synced, and a forced re-run writes nothing", async () => {
     const t = convexTest(schema, modules);
     serve({ [COMMIT_A]: await repoAt() });

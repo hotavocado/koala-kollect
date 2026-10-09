@@ -20,7 +20,7 @@ const site = v.union(
 // Where a printing or its locator was read: an official site, or tcgcsv for
 // DON printings (no official site lists DON). The contract refuses tcgcsv on
 // anything but a DON printing; products and observations keep `site`.
-const printingSite = v.union(site, v.literal("tcgcsv"));
+export const printingSite = v.union(site, v.literal("tcgcsv"));
 const lang = v.union(v.literal("en"), v.literal("ja"), v.literal("zh-Hant"), v.literal("zh-Hans"));
 const region = v.union(v.literal("en"), v.literal("asia"), v.literal("jp"), v.literal("cn"));
 const color = v.union(
@@ -286,6 +286,12 @@ export default defineSchema({
     status: v.union(v.literal("running"), v.literal("ok"), v.literal("refused"), v.literal("failed")),
     refusal: v.optional(v.string()), // e.g. "sha256 mismatch on data/printings/jp.jsonl"
     upserted: v.optional(v.number()),
+    // On an ok sync: printings in the commit whose image the proxy refuses
+    // (they show the text face), and when non-zero their count per site and
+    // the first 50 of their keys.
+    unproxied_images: v.optional(v.number()),
+    unproxied_image_keys: v.optional(v.array(v.string())),
+    unproxied_image_sites: v.optional(v.array(v.object({ site: printingSite, count: v.number() }))),
   }).index("by_started_at", ["started_at"]),
 
   // App-only, derived: the set index. One row per product code across sites,
