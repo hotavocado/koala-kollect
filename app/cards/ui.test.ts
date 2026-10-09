@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cardLabel, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
+import { cardLabel, cnOnly, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
 
 describe("cardLabel", () => {
   const base = { name: null, number: null, donDesign: null };
@@ -85,5 +85,21 @@ describe("quantityNoteShown", () => {
   test("no note, nothing shown", () => {
     expect(quantityNoteShown(null, pack)).toBeNull();
     expect(quantityNoteShown("  ", pack)).toBeNull();
+  });
+});
+
+describe("cnOnly", () => {
+  // P-122 to P-134 (Special Card Set vol.2) are listed by cn and no other site.
+  test("a card whose every printing is on cn", () => {
+    expect(cnOnly([{ site: "cn" }])).toBe(true);
+  });
+
+  test("a card cn shares with any other site", () => {
+    expect(cnOnly([{ site: "jp" }, { site: "cn" }])).toBe(false);
+    expect(cnOnly([{ site: "tc" }])).toBe(false);
+  });
+
+  test("a card with no printings yet is not cn-only", () => {
+    expect(cnOnly([])).toBe(false);
   });
 });

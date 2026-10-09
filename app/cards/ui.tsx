@@ -109,6 +109,13 @@ export function quantityNoteShown(note: string | null, quote: string): string | 
   return plain(note) === plain(quote) ? null : note;
 }
 
+// Every printing of the card is on cn's list and no other site's (P-122 to
+// P-134, Special Card Set vol.2). Such a card has only Chinese text and no
+// official page to link to, and the card page says why.
+export function cnOnly(regions: { site: string }[]): boolean {
+  return regions.length > 0 && regions.every((r) => r.site === "cn");
+}
+
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg bg-layer-1 p-6">

@@ -128,6 +128,13 @@ export default defineSchema({
     // As printed on this printing on this site: a number, "X" (never rotates
     // out of standard), or null where the site prints none. Required.
     block_icon: v.union(v.number(), v.literal("X"), v.null()),
+    // cn only, verbatim, absent when cn writes none: the token cn appends to
+    // the card number (P-084_01 -> "_01") and the one its image file name
+    // carries (OP06-050P.png -> "P"). Evidence for variant, never part of the
+    // card's number. cn's variant is base or parallel only (the contract
+    // refuses reprint there).
+    number_token: v.optional(v.string()),
+    image_token: v.optional(v.string()),
     first_seen_at: v.string(),
   })
     .index("by_key", ["key"])
