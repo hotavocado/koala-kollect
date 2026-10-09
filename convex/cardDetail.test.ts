@@ -343,3 +343,39 @@ describe("cards.detail", () => {
     expect(card?.text).toBeNull();
   });
 });
+
+describe("a tcgcsv printing with no image yet", () => {
+  // Normal and foil are one TCGplayer product (512344), so they lose their
+  // image together while TCGplayer has none; gold is its own product (512345).
+  async function seededWithout(keys: string[]) {
+    const t = await seeded();
+    await t.run(async (ctx) => {
+      for (const p of await ctx.db.query("printings").withIndex("by_card", (q) => q.eq("card_key", DON)).collect()) {
+        if (!keys.includes(p.key)) continue;
+        const { _id, _creationTime, image_url, ...rest } = p;
+        void _creationTime;
+        void image_url;
+        await ctx.db.replace(_id, rest as never);
+      }
+    });
+    return t;
+  }
+
+  test("the card takes its image from the next printing that has one, and the printings read null", async () => {
+    const t = await seededWithout(["prt_00000000d0d2", "prt_00000000d0d3"]);
+    const card = await t.query(api.cards.detail, { key: DON });
+    expect(card?.imageUrl).toBe("https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg");
+    expect(card?.regions[0].printings.map((p) => [p.variant, p.imageUrl, p.tcgplayerUrl])).toEqual([
+      ["normal", null, "https://www.tcgplayer.com/product/512344"],
+      ["foil", null, "https://www.tcgplayer.com/product/512344"],
+      ["gold", "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg", "https://www.tcgplayer.com/product/512345"],
+    ]);
+  });
+
+  test("with no printing imaged, the card's image is null, as on a card with no art", async () => {
+    const t = await seededWithout(["prt_00000000d0d1", "prt_00000000d0d2", "prt_00000000d0d3"]);
+    const card = await t.query(api.cards.detail, { key: DON });
+    expect(card?.imageUrl).toBeNull();
+    expect(card?.regions[0].printings.map((p) => p.imageUrl)).toEqual([null, null, null]);
+  });
+});

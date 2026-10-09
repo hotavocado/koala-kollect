@@ -15,6 +15,7 @@ import {
   parseManifest,
   mainFromRefs,
   sameRecord,
+  refuseMissingImage,
   sha256Hex,
   verifyFile,
 } from "./syncCore";
@@ -124,7 +125,8 @@ export const run = internalAction({
       if (commit === null || manifestBytes === null) throw new Refusal(fetchError ?? "no manifest");
       manifest = parseManifest(new TextDecoder().decode(manifestBytes));
       for (const [path, entry] of Object.entries(manifest.files)) {
-        await verifyFile(path, await fetchFile(commit, path), entry);
+        const records = await verifyFile(path, await fetchFile(commit, path), entry);
+        if (entry.type === "printing") refuseMissingImage(path, records);
       }
     } catch (e) {
       // A Refusal is a contract violation; anything else is our failure. Either
@@ -153,7 +155,10 @@ export const run = internalAction({
         const table = TYPE_TO_TABLE[entry.type];
         if (entry.type === "printing") {
           for (const r of records as Doc<"printings">[]) {
-            if (proxiedImageUrl(r.image_url) === null) unproxied.push({ key: r.key, site: r.site });
+            // No image yet (tcgcsv only) is not an image the proxy refuses.
+            if (r.image_url !== undefined && proxiedImageUrl(r.image_url) === null) {
+              unproxied.push({ key: r.key, site: r.site });
+            }
           }
         }
         for (let i = 0; i < records.length; i += BATCH_SIZE) {

@@ -61,6 +61,37 @@ const cardFacts = {
   attributes: v.array(attribute),
 };
 
+// Every printings field but site and image_url, which the table splits on.
+const printingFields = {
+  key: v.string(), // prt_xxxxxxxxxxxx
+  card_key: v.string(),
+  rarity: v.string(),
+  variant: v.union(
+    v.literal("base"),
+    v.literal("parallel"),
+    v.literal("alt_art"),
+    v.literal("normal"), // DON!! from tcgcsv: TCGplayer's Normal finish
+    v.literal("foil"), // DON!! from tcgcsv: TCGplayer's Foil finish
+    v.literal("gold"), // gold DON!!, always foil
+    v.literal("reprint"),
+    v.literal("manga"),
+    v.literal("serial"),
+    v.literal("other"),
+  ),
+  source_text: v.string(), // the verbatim provenance string
+  // As printed on this printing on this site: a number, "X" (never rotates
+  // out of standard), or null where the site prints none. Required.
+  block_icon: v.union(v.number(), v.literal("X"), v.null()),
+  // cn only, verbatim, absent when cn writes none: the token cn appends to
+  // the card number (P-084_01 -> "_01") and the one its image file name
+  // carries (OP06-050P.png -> "P"). Evidence for variant, never part of the
+  // card's number. cn's variant is base or parallel only (the contract
+  // refuses reprint there).
+  number_token: v.optional(v.string()),
+  image_token: v.optional(v.string()),
+  first_seen_at: v.string(),
+};
+
 export default defineSchema({
   // Rules identity. Synthetic key. The natural key is number for numbered cards
   // and don_design for DON cards (each DON design is its own card; normal and
@@ -109,37 +140,16 @@ export default defineSchema({
   // One physical print as one site lists it. No removed_at: where it is listed
   // lives on printing_products, and printings move between series pages under
   // the same image id.
-  printings: defineTable({
-    key: v.string(), // prt_xxxxxxxxxxxx
-    card_key: v.string(),
-    site: printingSite,
-    rarity: v.string(),
-    variant: v.union(
-      v.literal("base"),
-      v.literal("parallel"),
-      v.literal("alt_art"),
-      v.literal("normal"), // DON!! from tcgcsv: TCGplayer's Normal finish
-      v.literal("foil"), // DON!! from tcgcsv: TCGplayer's Foil finish
-      v.literal("gold"), // gold DON!!, always foil
-      v.literal("reprint"),
-      v.literal("manga"),
-      v.literal("serial"),
-      v.literal("other"),
+  //
+  // image_url is required on every official site and optional on tcgcsv only:
+  // TCGplayer lists a new DON at imageCount 0 for a while, so the data repo
+  // omits the URL until an image exists and the daily run writes it then.
+  printings: defineTable(
+    v.union(
+      v.object({ ...printingFields, site, image_url: v.string() }), // official URL, linked, never re-hosted
+      v.object({ ...printingFields, site: v.literal("tcgcsv"), image_url: v.optional(v.string()) }),
     ),
-    image_url: v.string(), // official URL, linked, never re-hosted
-    source_text: v.string(), // the verbatim provenance string
-    // As printed on this printing on this site: a number, "X" (never rotates
-    // out of standard), or null where the site prints none. Required.
-    block_icon: v.union(v.number(), v.literal("X"), v.null()),
-    // cn only, verbatim, absent when cn writes none: the token cn appends to
-    // the card number (P-084_01 -> "_01") and the one its image file name
-    // carries (OP06-050P.png -> "P"). Evidence for variant, never part of the
-    // card's number. cn's variant is base or parallel only (the contract
-    // refuses reprint there).
-    number_token: v.optional(v.string()),
-    image_token: v.optional(v.string()),
-    first_seen_at: v.string(),
-  })
+  )
     .index("by_key", ["key"])
     .index("by_card", ["card_key"])
     .index("by_site", ["site"]),

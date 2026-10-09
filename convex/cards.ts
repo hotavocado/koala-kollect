@@ -56,6 +56,12 @@ function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
   );
 }
 
+// The card's image: the best-ranked printing that has one. A tcgcsv printing
+// has none until TCGplayer lists an image, and the card then shows its text face.
+function cardImage(printings: Doc<"printings">[]): string | null {
+  return rankPrintings(printings).find((p) => p.image_url !== undefined)?.image_url ?? null;
+}
+
 // Official card lists that search by card number through ?freewords=. cn's
 // list is an API with no search page, and tcgcsv only locates DON printings,
 // so neither gets a link.
@@ -110,7 +116,7 @@ export async function browseRow(
     category: card.category,
     colors: card.colors,
     name: pickName(observations),
-    imageUrl: rankPrintings(imageFrom?.length ? imageFrom : printings)[0]?.image_url ?? null,
+    imageUrl: cardImage(imageFrom?.length ? imageFrom : printings),
     printings: printings.length,
   };
 }
@@ -292,7 +298,7 @@ export type CardPrinting = {
   key: string;
   rarity: string;
   variant: Doc<"printings">["variant"];
-  imageUrl: string;
+  imageUrl: string | null; // null on a tcgcsv printing TCGplayer has no image for yet
   sourceText: string; // verbatim; empty when the site prints none
   imageIds: string[];
   // A tcgcsv printing's TCGplayer product page; null on every official site.
@@ -419,7 +425,7 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
     key: p.key,
     rarity: p.rarity,
     variant: p.variant,
-    imageUrl: p.image_url,
+    imageUrl: p.image_url ?? null,
     sourceText: p.source_text,
     imageIds: locators.map((l) => l.image_id).sort(),
     tcgplayerUrl: p.site === "tcgcsv" ? tcgplayerUrl(locators) : null,
@@ -498,7 +504,7 @@ export const detail = query({
             trigger: obs.trigger ?? null,
           }
         : null,
-      imageUrl: ranked[0]?.image_url ?? null,
+      imageUrl: cardImage(printings),
       officialUrl: ranked.map((p) => listUrl(p.site, card.number)).find(Boolean) ?? null,
       regions,
     };
