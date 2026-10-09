@@ -379,3 +379,42 @@ describe("a tcgcsv printing with no image yet", () => {
     expect(card?.regions[0].printings.map((p) => p.imageUrl)).toEqual([null, null, null]);
   });
 });
+
+describe("cards.print", () => {
+  test("a parallel printing reads its own image, not the card's base face, and the same printing the card page lists", async () => {
+    const t = await seeded();
+    const print = await t.query(api.cards.print, { cardKey: ZORO, printKey: "prt_000000000001" });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    expect(print).toMatchObject({
+      card: { key: ZORO, number: "OP01-001", donDesign: null, category: "leader", colors: ["red"], name: "Roronoa Zoro" },
+      site: "en",
+      listUrl: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
+    });
+    expect(print?.printing.imageUrl).toBe("https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png");
+    expect(print?.printing.imageUrl).not.toBe(card?.imageUrl);
+    expect(print?.printing).toEqual(card?.regions[0].printings.find((p) => p.key === "prt_000000000001"));
+    expect(print?.printing.claims.map((c) => c.distribution?.name)).toEqual(["Store Tournament Vol.4"]);
+  });
+
+  test("a gold DON reads its own product's image and TCGplayer link", async () => {
+    const t = await seeded();
+    const print = await t.query(api.cards.print, { cardKey: DON, printKey: "prt_00000000d0d1" });
+    expect(print).toMatchObject({
+      card: { key: DON, number: null, donDesign: "OP-01:monkey-d-luffy", category: "don", name: "DON!! Card (Monkey.D.Luffy)" },
+      site: "tcgcsv",
+      listUrl: null,
+      printing: {
+        variant: "gold",
+        imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg",
+        tcgplayerUrl: "https://www.tcgplayer.com/product/512345",
+      },
+    });
+  });
+
+  test("an unknown printing, or one under another card's key, reads null", async () => {
+    const t = await seeded();
+    expect(await t.query(api.cards.print, { cardKey: ZORO, printKey: "prt_ffffffffffff" })).toBeNull();
+    expect(await t.query(api.cards.print, { cardKey: ZORO, printKey: "prt_00000000d0d1" })).toBeNull();
+    expect(await t.query(api.cards.print, { cardKey: "card_ffffffffffff", printKey: "prt_000000000001" })).toBeNull();
+  });
+});
