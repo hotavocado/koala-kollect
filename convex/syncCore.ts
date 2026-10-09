@@ -141,3 +141,15 @@ function canonical(value: unknown): string {
   }
   return JSON.stringify(value);
 }
+
+// A printing with no image_url is refused on every official site. tcgcsv may
+// omit it: TCGplayer lists a new DON at imageCount 0 until an image exists.
+// Checked in pass 1 so the commit is refused before anything is written,
+// rather than failing mid-write on the schema.
+export function refuseMissingImage(path: string, records: SyncRecord[]): void {
+  records.forEach((r, i) => {
+    if (r.site !== "tcgcsv" && typeof r.image_url !== "string") {
+      throw new Refusal(`${path} line ${i + 1}: printing ${r.key} on ${String(r.site)} has no image_url`);
+    }
+  });
+}

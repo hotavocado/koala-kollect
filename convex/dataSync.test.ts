@@ -121,9 +121,12 @@ describe("dataSync.run", () => {
       return Object.keys(files).filter((p) => files[p].type === "printing");
     }
     // The fixture's DON printings, read from the fixture, not typed: every
-    // tcgcsv image is on tcgplayer-cdn, which the proxy refuses.
+    // tcgcsv image is on tcgplayer-cdn, which the proxy refuses. A tcgcsv
+    // printing with no image yet has nothing to refuse and is not counted.
     const DON_KEYS = (fixtureFiles()["data/printings/tcgcsv.jsonl"]?.lines ?? [])
-      .map((l) => (JSON.parse(l) as Rec).key)
+      .map((l) => JSON.parse(l) as Rec)
+      .filter((r) => r.image_url !== undefined)
+      .map((r) => r.key)
       .sort();
     const N = DON_KEYS.length;
 
@@ -490,5 +493,65 @@ describe("dataSync.run", () => {
 
     expect(r).toMatchObject({ status: "skipped", detail: "another sync is running" });
     expect(await counts(t)).toEqual(EMPTY);
+  });
+});
+
+// TCGplayer lists a new DON at imageCount 0 until an image exists, so the data
+// repo omits image_url on those tcgcsv printings. Every official site still
+// requires it: the sync refuses the commit before writing, and the schema
+// rejects the row on its own.
+describe("printings with no image_url", () => {
+  function withoutImage(path: string) {
+    const files = fixtureFiles();
+    const prt = JSON.parse(files[path].lines[0]) as Rec;
+    delete prt.image_url;
+    files[path].lines[0] = JSON.stringify(prt);
+    return { files, prt };
+  }
+
+  test("a tcgcsv printing syncs without one and is not counted as refused by the proxy", async () => {
+    const t = convexTest(schema, modules);
+    const { files, prt } = withoutImage("data/printings/tcgcsv.jsonl");
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+    expect(r.status).toBe("ok");
+    const stored = await t.run(
+      async (ctx) => await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", prt.key)).unique(),
+    );
+    expect(stored).not.toBeNull();
+    expect(stored).not.toHaveProperty("image_url");
+    const sync = (await syncs(t))[0];
+    expect(sync.unproxied_image_keys).not.toContain(prt.key);
+    expect(sync.unproxied_image_sites).toEqual([{ site: "tcgcsv", count: sync.unproxied_images }]);
+  });
+
+  // Every official site's printing file in the fixture, read from the fixture,
+  // so a site added to it is covered without editing this list.
+  const OFFICIAL = Object.keys(fixtureFiles()).filter(
+    (p) => fixtureFiles()[p].type === "printing" && !p.endsWith("/tcgcsv.jsonl"),
+  );
+
+  test("the fixture has official printing files to check", () => {
+    expect(OFFICIAL.length).toBeGreaterThan(1);
+  });
+
+  test.each(OFFICIAL)("%s: a printing with no image_url refuses the commit and writes nothing", async (path) => {
+    const t = convexTest(schema, modules);
+    const { files, prt } = withoutImage(path);
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+    expect(r.status).toBe("refused");
+    expect(r.detail).toBe(`${path} line 1: printing ${prt.key} on ${String(prt.site)} has no image_url`);
+    expect(await counts(t)).toEqual(EMPTY);
+  });
+
+  test.each(OFFICIAL)("%s: the schema rejects a printing with no image_url", async (path) => {
+    const t = convexTest(schema, modules);
+    const { prt } = withoutImage(path);
+    await expect(t.run(async (ctx) => void (await ctx.db.insert("printings", prt as never)))).rejects.toThrow();
   });
 });
