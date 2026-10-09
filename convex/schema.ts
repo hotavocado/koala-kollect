@@ -22,6 +22,9 @@ const site = v.union(
 // cards, and the stamped Release Event prints of numbered cards. Products keep
 // `site`.
 export const printingSite = v.union(site, v.literal("tcgcsv"));
+// A distribution's own site: an official site, or tcgcsv for a Release Event
+// group. Its own enum, so tcgcsv never becomes a product site by the back door.
+const distributionSite = v.union(site, v.literal("tcgcsv"));
 const lang = v.union(v.literal("en"), v.literal("ja"), v.literal("zh-Hant"), v.literal("zh-Hans"));
 const region = v.union(v.literal("en"), v.literal("asia"), v.literal("jp"), v.literal("cn"));
 const color = v.union(
@@ -224,11 +227,11 @@ export default defineSchema({
 
   // The pack or handout itself: what it is and in which region. It is minted
   // from one site's card list, so the same pack name on en and asia-en is two
-  // distributions. When, which tier and how many are on each
-  // printing_distributions claim.
+  // distributions; a Release Event group is minted from tcgcsv. When, which
+  // tier and how many are on each printing_distributions claim.
   distributions: defineTable({
     key: v.string(), // dist_xxxxxxxxxxxx
-    site,
+    site: distributionSite,
     region,
     kind: v.union(
       v.literal("promo_pack"),
