@@ -17,9 +17,9 @@ const site = v.union(
   v.literal("tc"),
   v.literal("cn"),
 );
-// Where a printing or its locator was read: an official site, or tcgcsv for
-// DON printings (no official site lists DON). The contract refuses tcgcsv on
-// anything but a DON printing; products and observations keep `site`.
+// Where a printing, its locator or a card observation was read: an official
+// site, or tcgcsv for DON cards (no official site lists DON). The contract
+// refuses tcgcsv on anything but a DON card; products keep `site`.
 export const printingSite = v.union(site, v.literal("tcgcsv"));
 const lang = v.union(v.literal("en"), v.literal("ja"), v.literal("zh-Hant"), v.literal("zh-Hans"));
 const region = v.union(v.literal("en"), v.literal("asia"), v.literal("jp"), v.literal("cn"));
@@ -88,7 +88,8 @@ export default defineSchema({
   card_observations: defineTable({
     key: v.string(), // {card_key}:{site}:{observation_hash}
     card_key: v.string(),
-    site,
+    // tcgcsv on DON cards only, carrying TCGplayer's product name as the name.
+    site: printingSite,
     lang,
     observation_hash: v.string(),
     name: v.string(),
@@ -117,7 +118,9 @@ export default defineSchema({
       v.literal("base"),
       v.literal("parallel"),
       v.literal("alt_art"),
-      v.literal("gold"), // gold DON!!
+      v.literal("normal"), // DON!! from tcgcsv: TCGplayer's Normal finish
+      v.literal("foil"), // DON!! from tcgcsv: TCGplayer's Foil finish
+      v.literal("gold"), // gold DON!!, always foil
       v.literal("reprint"),
       v.literal("manga"),
       v.literal("serial"),
@@ -147,7 +150,7 @@ export default defineSchema({
     key: v.string(), // {site}:{image_id}
     printing_key: v.string(),
     site: printingSite,
-    image_id: v.string(), // OP14-108_p3, P-001_p5, ..._r1; cn and tcgcsv: numeric
+    image_id: v.string(), // OP14-108_p3, P-001_p5, ..._r1; cn: numeric; tcgcsv: 512344:Normal
     suffix_family: v.optional(v.union(v.literal("p"), v.literal("r"))),
     suffix_n: v.optional(v.number()),
     first_seen_at: v.string(),

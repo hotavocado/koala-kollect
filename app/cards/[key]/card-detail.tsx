@@ -18,6 +18,8 @@ const SITE_LABEL: Record<CardRegion["site"], string> = {
 
 const VARIANT_LABEL: Record<CardPrinting["variant"], string> = {
   base: "Base",
+  normal: "Normal",
+  foil: "Foil",
   parallel: "Parallel",
   alt_art: "Alt art",
   gold: "Gold",
@@ -145,6 +147,12 @@ function Detail({ card }: { card: CardDetail }) {
                 no official page to link to.
               </p>
             )}
+            {card.donDesign && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No official card list carries DON!! cards, so this one comes from TCGplayer&apos;s catalogue. The
+                name is TCGplayer&apos;s, and each printing links to its TCGplayer listing.
+              </p>
+            )}
           </div>
 
           {stats.length > 0 && (
@@ -175,7 +183,9 @@ function Detail({ card }: { card: CardDetail }) {
           )}
           {card.text && (
             <p className="text-xs text-muted-foreground">
-              Text from the {SITE_LABEL[card.text.site]} card list.
+              {card.text.site === "tcgcsv"
+                ? "Name from TCGplayer's catalogue."
+                : `Text from the ${SITE_LABEL[card.text.site]} card list.`}
             </p>
           )}
         </div>
@@ -231,6 +241,12 @@ function PrintingRow({ printing: p, site }: { printing: CardPrinting; site: Card
             {site === "tcgcsv"
               ? "TCGplayer lists no source for this printing."
               : "The card list prints no source for this printing."}
+          </p>
+        )}
+
+        {p.tcgplayerUrl && (
+          <p className="text-sm">
+            <OfficialLink href={p.tcgplayerUrl}>TCGplayer listing</OfficialLink>
           </p>
         )}
 

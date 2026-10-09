@@ -120,18 +120,25 @@ describe("dataSync.run", () => {
     function printingFiles(files: ReturnType<typeof fixtureFiles>) {
       return Object.keys(files).filter((p) => files[p].type === "printing");
     }
+    // The fixture's DON printings, read from the fixture, not typed: every
+    // tcgcsv image is on tcgplayer-cdn, which the proxy refuses.
+    const DON_KEYS = (fixtureFiles()["data/printings/tcgcsv.jsonl"]?.lines ?? [])
+      .map((l) => (JSON.parse(l) as Rec).key)
+      .sort();
+    const N = DON_KEYS.length;
 
-    test("the fixture's tcgcsv DON printing is counted", async () => {
+    test("the fixture's tcgcsv DON printings are counted", async () => {
+      expect(N).toBeGreaterThan(1); // normal, foil and gold, so the count is not a lone 1
       const t = convexTest(schema, modules);
       serve({ [COMMIT_A]: await repoAt() });
 
       const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
 
-      expect(r.detail).toMatch(/; 1 printing image not proxied \(tcgcsv 1\): prt_00000000d0d1$/);
+      expect(r.detail).toMatch(new RegExp(`; ${N} printing images not proxied \\(tcgcsv ${N}\\): ${DON_KEYS.join(", ")}$`));
       expect((await syncs(t))[0]).toMatchObject({
-        unproxied_images: 1,
-        unproxied_image_keys: ["prt_00000000d0d1"],
-        unproxied_image_sites: [{ site: "tcgcsv", count: 1 }],
+        unproxied_images: N,
+        unproxied_image_keys: DON_KEYS,
+        unproxied_image_sites: [{ site: "tcgcsv", count: N }],
       });
     });
 
@@ -147,14 +154,16 @@ describe("dataSync.run", () => {
       const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
 
       expect(r.status).toBe("ok");
-      const keys = [prt.key, "prt_00000000d0d1"].sort();
-      expect(r.detail).toMatch(new RegExp(`; 2 printing images not proxied \\(en 1, tcgcsv 1\\): ${keys.join(", ")}$`));
+      const keys = [prt.key, ...DON_KEYS].sort();
+      expect(r.detail).toMatch(
+        new RegExp(`; ${N + 1} printing images not proxied \\(en 1, tcgcsv ${N}\\): ${keys.join(", ")}$`),
+      );
       expect((await syncs(t))[0]).toMatchObject({
-        unproxied_images: 2,
+        unproxied_images: N + 1,
         unproxied_image_keys: keys,
         unproxied_image_sites: [
           { site: "en", count: 1 },
-          { site: "tcgcsv", count: 1 },
+          { site: "tcgcsv", count: N },
         ],
       });
     });
@@ -191,13 +200,15 @@ describe("dataSync.run", () => {
 
       expect(r.status).toBe("ok");
       const [row] = await syncs(t);
-      expect(row.unproxied_images).toBe(61);
+      expect(row.unproxied_images).toBe(60 + N);
       expect(row.unproxied_image_keys).toHaveLength(50);
       expect(row.unproxied_image_sites).toEqual([
         { site: "en", count: 60 },
-        { site: "tcgcsv", count: 1 },
+        { site: "tcgcsv", count: N },
       ]);
-      expect(r.detail).toMatch(/; 61 printing images not proxied \(en 60, tcgcsv 1\): .+, and 11 more$/);
+      expect(r.detail).toMatch(
+        new RegExp(`; ${60 + N} printing images not proxied \\(en 60, tcgcsv ${N}\\): .+, and ${10 + N} more$`),
+      );
     });
   });
 
@@ -365,7 +376,7 @@ describe("dataSync.run", () => {
     const files = fixtureFiles();
     const prtPath = Object.keys(files).find((p) => files[p].type === "printing")!;
     const bad = JSON.parse(files[prtPath].lines[0]) as Rec;
-    bad.variant = "foil";
+    bad.variant = "holo"; // not a variant on any site
     files[prtPath].lines[0] = JSON.stringify(bad);
     serve({ [COMMIT_A]: await repoAt(files) });
 

@@ -8,8 +8,9 @@ import type { Doc } from "./_generated/dataModel";
 
 // Whose printed name to show when a card has several current observations.
 // English first because the browse page is in English; JP before the Chinese
-// sites because JP is the authority for card facts.
-const NAME_SITE_ORDER: Doc<"card_observations">["site"][] = ["en", "asia-en", "jp", "tc", "cn"];
+// sites because JP is the authority for card facts. tcgcsv last: it observes
+// DON cards only, which no official site lists, so it never outranks one.
+const NAME_SITE_ORDER: Doc<"card_observations">["site"][] = ["en", "asia-en", "jp", "tc", "cn", "tcgcsv"];
 
 export type BrowseCard = {
   key: string;
@@ -37,6 +38,11 @@ function pickName(observations: Doc<"card_observations">[]): string | null {
   return pickObservation(observations)?.name ?? null;
 }
 
+// A DON's normal-finish printing stands where a numbered card's base does.
+function isBase(variant: Doc<"printings">["variant"]): boolean {
+  return variant === "base" || variant === "normal";
+}
+
 // Base printings first, then the same site order as the name, so the image
 // and name usually agree.
 function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
@@ -46,7 +52,7 @@ function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
   };
   return [...printings].sort(
     (a, b) =>
-      Number(a.variant !== "base") - Number(b.variant !== "base") || siteRank(a.site) - siteRank(b.site),
+      Number(!isBase(a.variant)) - Number(!isBase(b.variant)) || siteRank(a.site) - siteRank(b.site),
   );
 }
 
@@ -236,6 +242,8 @@ export const lastSync = query({
 const REGION_ORDER: Doc<"printings">["site"][] = ["en", "asia-en", "jp", "tc", "cn", "tcgcsv"];
 const VARIANT_ORDER: Doc<"printings">["variant"][] = [
   "base",
+  "normal",
+  "foil",
   "parallel",
   "alt_art",
   "gold",
@@ -287,6 +295,8 @@ export type CardPrinting = {
   imageUrl: string;
   sourceText: string; // verbatim; empty when the site prints none
   imageIds: string[];
+  // A tcgcsv printing's TCGplayer product page; null on every official site.
+  tcgplayerUrl: string | null;
   listings: CardListing[];
   claims: CardClaim[];
 };
@@ -412,9 +422,17 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
     imageUrl: p.image_url,
     sourceText: p.source_text,
     imageIds: locators.map((l) => l.image_id).sort(),
+    tcgplayerUrl: p.site === "tcgcsv" ? tcgplayerUrl(locators) : null,
     listings,
     claims,
   };
+}
+
+// A tcgcsv locator's image id is {productId}:{finish}; Normal and Foil of one
+// product share the product page.
+function tcgplayerUrl(locators: Doc<"printing_locators">[]): string | null {
+  const id = locators.map((l) => l.image_id.match(/^(\d+):/)?.[1]).find(Boolean);
+  return id ? `https://www.tcgplayer.com/product/${id}` : null;
 }
 
 export const detail = query({
