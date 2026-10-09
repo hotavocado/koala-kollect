@@ -24,6 +24,7 @@ export const VARIANT_LABEL: Record<CardPrinting["variant"], string> = {
   reprint: "Reprint",
   manga: "Manga",
   serial: "Serial",
+  stamped: "Stamped",
   other: "Other",
 };
 

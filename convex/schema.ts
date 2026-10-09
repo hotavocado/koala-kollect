@@ -18,8 +18,9 @@ const site = v.union(
   v.literal("cn"),
 );
 // Where a printing, its locator or a card observation was read: an official
-// site, or tcgcsv for DON cards (no official site lists DON). The contract
-// refuses tcgcsv on anything but a DON card; products keep `site`.
+// site, or tcgcsv (TCGplayer's catalogue) for what no official site lists: DON
+// cards, and the stamped Release Event prints of numbered cards. Products keep
+// `site`.
 export const printingSite = v.union(site, v.literal("tcgcsv"));
 const lang = v.union(v.literal("en"), v.literal("ja"), v.literal("zh-Hant"), v.literal("zh-Hans"));
 const region = v.union(v.literal("en"), v.literal("asia"), v.literal("jp"), v.literal("cn"));
@@ -61,23 +62,33 @@ const cardFacts = {
   attributes: v.array(attribute),
 };
 
-// Every printings field but site and image_url, which the table splits on.
+// The variants an official site lists.
+const officialVariant = v.union(
+  v.literal("base"),
+  v.literal("parallel"),
+  v.literal("alt_art"),
+  v.literal("gold"), // gold DON!!, always foil
+  v.literal("reprint"),
+  v.literal("manga"),
+  v.literal("serial"),
+  v.literal("other"),
+);
+// tcgcsv adds TCGplayer's own: the Normal and Foil finishes of a DON!!, and a
+// stamped Release Event print, which carries its base card's number and no
+// other mark. The contract refuses all three on an official site.
+const tcgcsvVariant = v.union(
+  ...officialVariant.members,
+  v.literal("normal"), // DON!! from tcgcsv: TCGplayer's Normal finish
+  v.literal("foil"), // DON!! from tcgcsv: TCGplayer's Foil finish
+  v.literal("stamped"), // Release Event stamped print from tcgcsv
+);
+
+// Every printings field but site, variant and image_url, which the table
+// splits on.
 const printingFields = {
   key: v.string(), // prt_xxxxxxxxxxxx
   card_key: v.string(),
   rarity: v.string(),
-  variant: v.union(
-    v.literal("base"),
-    v.literal("parallel"),
-    v.literal("alt_art"),
-    v.literal("normal"), // DON!! from tcgcsv: TCGplayer's Normal finish
-    v.literal("foil"), // DON!! from tcgcsv: TCGplayer's Foil finish
-    v.literal("gold"), // gold DON!!, always foil
-    v.literal("reprint"),
-    v.literal("manga"),
-    v.literal("serial"),
-    v.literal("other"),
-  ),
   source_text: v.string(), // the verbatim provenance string
   // As printed on this printing on this site: a number, "X" (never rotates
   // out of standard), or null where the site prints none. Required.
@@ -146,8 +157,13 @@ export default defineSchema({
   // omits the URL until an image exists and the daily run writes it then.
   printings: defineTable(
     v.union(
-      v.object({ ...printingFields, site, image_url: v.string() }), // official URL, linked, never re-hosted
-      v.object({ ...printingFields, site: v.literal("tcgcsv"), image_url: v.optional(v.string()) }),
+      v.object({ ...printingFields, site, variant: officialVariant, image_url: v.string() }), // official URL, linked, never re-hosted
+      v.object({
+        ...printingFields,
+        site: v.literal("tcgcsv"),
+        variant: tcgcsvVariant,
+        image_url: v.optional(v.string()),
+      }),
     ),
   )
     .index("by_key", ["key"])

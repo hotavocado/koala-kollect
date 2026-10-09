@@ -63,8 +63,9 @@ function cardImage(printings: Doc<"printings">[]): string | null {
 }
 
 // Official card lists that search by card number through ?freewords=. cn's
-// list is an API with no search page, and tcgcsv only locates DON printings,
-// so neither gets a link.
+// list is an API with no search page, and tcgcsv is not an official list (its
+// printings link to their TCGplayer product page instead), so neither gets a
+// link.
 const LIST_HOST: Partial<Record<Doc<"printings">["site"], string>> = {
   en: "en.onepiece-cardgame.com",
   "asia-en": "asia-en.onepiece-cardgame.com",
@@ -244,7 +245,8 @@ export const lastSync = query({
 // pages it sits under, and the claims about where it was handed out.
 
 // Region order on the page: English first, as on the browse page, then the
-// other official sites, then tcgcsv, which only ever carries DON printings.
+// other official sites, then tcgcsv: DON printings, and the stamped Release
+// Event prints no official list carries.
 const REGION_ORDER: Doc<"printings">["site"][] = ["en", "asia-en", "jp", "tc", "cn", "tcgcsv"];
 const VARIANT_ORDER: Doc<"printings">["variant"][] = [
   "base",
@@ -256,6 +258,7 @@ const VARIANT_ORDER: Doc<"printings">["variant"][] = [
   "manga",
   "serial",
   "reprint",
+  "stamped",
   "other",
 ];
 const CONFIDENCE_ORDER: Doc<"printing_distributions">["confidence"][] = [
