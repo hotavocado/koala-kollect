@@ -4,14 +4,14 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { internal } from "./_generated/api";
 import fixture from "./fixtures/contract-valid.jsonl?raw";
 import schema from "./schema";
-import { type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
+import { type ManifestType, RETIRED_TYPE, type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
 // fixtures/contract-valid.jsonl is koala-kollect-data's examples/valid.jsonl,
-// copied from the promo-origin data branch at 5a8e6d2 ahead of its merge
-// (tier, dates and quantity on the claim; site on the distribution). It is the contract's own valid example of
+// copied from data main at e5d11cd. It is the contract's own valid example of
 // every record type, so syncing it end to end also checks that
-// convex/schema.ts still accepts what the contract allows. Refresh the copy
-// when the contract changes.
+// convex/schema.ts still accepts what the contract allows, and that pass 1
+// still reads the contract's retired_printing row. Refresh the copy when the
+// contract changes.
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
 const COMMIT_A = "a".repeat(40);
@@ -27,13 +27,14 @@ function pathFor(type: RecordType, rec: Rec): string {
   return !ONE_FILE.has(type) && typeof rec.site === "string" ? `data/${table}/${rec.site}.jsonl` : `data/${table}.jsonl`;
 }
 
-function fixtureFiles(): Record<string, { type: RecordType; lines: string[] }> {
-  const files: Record<string, { type: RecordType; lines: string[] }> = {};
+function fixtureFiles(): Record<string, { type: ManifestType; lines: string[] }> {
+  const files: Record<string, { type: ManifestType; lines: string[] }> = {};
   for (const line of fixture.trim().split("\n")) {
     const { type, record } = JSON.parse(line) as { type: string; record: Rec };
-    if (!(type in TYPE_TO_TABLE)) continue; // ingest_run is audit only
-    const path = pathFor(type as RecordType, record);
-    files[path] ??= { type: type as RecordType, lines: [] };
+    // ingest_run is audit only; retired_printing is a file but not a table.
+    if (!(type in TYPE_TO_TABLE) && type !== RETIRED_TYPE) continue;
+    const path = type === RETIRED_TYPE ? "data/retired_printings.jsonl" : pathFor(type as RecordType, record);
+    files[path] ??= { type: type as ManifestType, lines: [] };
     files[path].lines.push(JSON.stringify(record));
   }
   return files;
@@ -106,12 +107,16 @@ describe("dataSync.run", () => {
 
     expect(r.status).toBe("ok");
     const expected = Object.fromEntries(SYNCED_TABLES.map((t) => [t, 0]));
-    for (const f of Object.values(fixtureFiles())) expected[TYPE_TO_TABLE[f.type]] += f.lines.length;
+    const files = fixtureFiles();
+    for (const f of Object.values(files)) if (f.type !== RETIRED_TYPE) expected[TYPE_TO_TABLE[f.type]] += f.lines.length;
+    // The contract's retired row names no printing in the examples, so pass 1
+    // reads it and nothing is deleted.
+    expect(files["data/retired_printings.jsonl"]?.lines).toHaveLength(1);
     expect(await counts(t)).toEqual(expected);
     for (const n of Object.values(expected)) expect(n).toBeGreaterThan(0); // every table exercised
     const [row] = await syncs(t);
     const total = Object.values(expected).reduce((a, b) => a + b, 0);
-    expect(row).toMatchObject({ data_commit: COMMIT_A, status: "ok", upserted: total });
+    expect(row).toMatchObject({ data_commit: COMMIT_A, status: "ok", upserted: total, retired: 0 });
     expect(row.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 

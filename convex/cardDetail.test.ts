@@ -134,22 +134,45 @@ describe("cards.detail", () => {
     expect(card).toMatchObject({
       category: "don",
       number: null,
-      donDesign: "OP-01:monkey-d-luffy",
+      donDesign: "PRB-01:don-card-monkey-d-luffy",
       text: { site: "tcgcsv", name: "DON!! Card (Monkey.D.Luffy)", types: [] },
       officialUrl: null,
       // The normal finish stands where a base printing would.
-      imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512344_in_1000x1000.jpg",
+      imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg",
     });
     expect(card?.regions).toHaveLength(1);
-    expect(card?.regions[0]).toMatchObject({
-      site: "tcgcsv",
-      listUrl: null,
-      printings: [
-        { key: "prt_00000000d0d2", variant: "normal", sourceText: "", imageIds: ["512344:Normal"], tcgplayerUrl: "https://www.tcgplayer.com/product/512344" },
-        { key: "prt_00000000d0d3", variant: "foil", imageIds: ["512344:Foil"], tcgplayerUrl: "https://www.tcgplayer.com/product/512344" },
-        { key: "prt_00000000d0d1", variant: "gold", imageIds: ["512345:Foil"], tcgplayerUrl: "https://www.tcgplayer.com/product/512345" },
-      ],
+    expect(card?.regions[0]).toMatchObject({ site: "tcgcsv", listUrl: null });
+    // The located printings read in variant order. The contract's fourth
+    // printing has no locator, so its place among the foils is only the empty
+    // image id sorting first; it is checked on its own, not by position.
+    const printings = card?.regions[0].printings ?? [];
+    expect(printings.filter((p) => p.imageIds.length > 0)).toMatchObject([
+      { key: "prt_00000000d0d2", variant: "normal", sourceText: "DON!! Card (Monkey.D.Luffy)", imageIds: ["512345:Normal"], tcgplayerUrl: "https://www.tcgplayer.com/product/512345" },
+      { key: "prt_00000000d0d3", variant: "foil", imageIds: ["512345:Foil"], tcgplayerUrl: "https://www.tcgplayer.com/product/512345" },
+      { key: "prt_00000000d0d1", variant: "gold", imageIds: ["512346:Foil"], tcgplayerUrl: "https://www.tcgplayer.com/product/512346" },
+    ]);
+    // The TCGplayer link comes from the locator, so a printing with none has
+    // no link even though its card has products.
+    expect(printings.find((p) => p.key === "prt_00000000d0d4")).toMatchObject({ variant: "foil", imageUrl: null, imageIds: [], tcgplayerUrl: null });
+    expect(printings).toHaveLength(4);
+  });
+
+  test("the normal finish is the card's face even when another finish has its own image", async () => {
+    // In the contract, normal and foil share one product image, so the read
+    // above cannot tell them apart. Give normal an image no other printing
+    // has, so the card can only match it by ranking normal first.
+    const t = await seeded();
+    const normalOnly = "https://tcgplayer-cdn.tcgplayer.com/product/normal-only.jpg";
+    await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query("printings")
+        .withIndex("by_card", (q) => q.eq("card_key", DON))
+        .filter((q) => q.eq(q.field("key"), "prt_00000000d0d2"))
+        .unique();
+      await ctx.db.patch(p!._id, { image_url: normalOnly });
     });
+    const card = await t.query(api.cards.detail, { key: DON });
+    expect(card?.imageUrl).toBe(normalOnly);
   });
 
   test("an official site's printing carries no TCGplayer link", async () => {
@@ -345,8 +368,9 @@ describe("cards.detail", () => {
 });
 
 describe("a tcgcsv printing with no image yet", () => {
-  // Normal and foil are one TCGplayer product (512344), so they lose their
-  // image together while TCGplayer has none; gold is its own product (512345).
+  // Normal and foil are one TCGplayer product (512345), so they lose their
+  // image together while TCGplayer has none; gold is its own product (512346).
+  // The contract's fourth printing (prt_00000000d0d4) has no image already.
   async function seededWithout(keys: string[]) {
     const t = await seeded();
     await t.run(async (ctx) => {
@@ -364,19 +388,22 @@ describe("a tcgcsv printing with no image yet", () => {
   test("the card takes its image from the next printing that has one, and the printings read null", async () => {
     const t = await seededWithout(["prt_00000000d0d2", "prt_00000000d0d3"]);
     const card = await t.query(api.cards.detail, { key: DON });
-    expect(card?.imageUrl).toBe("https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg");
-    expect(card?.regions[0].printings.map((p) => [p.variant, p.imageUrl, p.tcgplayerUrl])).toEqual([
-      ["normal", null, "https://www.tcgplayer.com/product/512344"],
-      ["foil", null, "https://www.tcgplayer.com/product/512344"],
-      ["gold", "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg", "https://www.tcgplayer.com/product/512345"],
-    ]);
+    expect(card?.imageUrl).toBe("https://tcgplayer-cdn.tcgplayer.com/product/512346_in_1000x1000.jpg");
+    // Keyed by printing, so the check does not lean on where the unlocated
+    // printing happens to sort.
+    expect(Object.fromEntries(card?.regions[0].printings.map((p) => [p.key, [p.variant, p.imageUrl, p.tcgplayerUrl]]) ?? [])).toEqual({
+      prt_00000000d0d2: ["normal", null, "https://www.tcgplayer.com/product/512345"],
+      prt_00000000d0d3: ["foil", null, "https://www.tcgplayer.com/product/512345"],
+      prt_00000000d0d4: ["foil", null, null],
+      prt_00000000d0d1: ["gold", "https://tcgplayer-cdn.tcgplayer.com/product/512346_in_1000x1000.jpg", "https://www.tcgplayer.com/product/512346"],
+    });
   });
 
   test("with no printing imaged, the card's image is null, as on a card with no art", async () => {
-    const t = await seededWithout(["prt_00000000d0d1", "prt_00000000d0d2", "prt_00000000d0d3"]);
+    const t = await seededWithout(["prt_00000000d0d1", "prt_00000000d0d2", "prt_00000000d0d3", "prt_00000000d0d4"]);
     const card = await t.query(api.cards.detail, { key: DON });
     expect(card?.imageUrl).toBeNull();
-    expect(card?.regions[0].printings.map((p) => p.imageUrl)).toEqual([null, null, null]);
+    expect(card?.regions[0].printings.map((p) => p.imageUrl)).toEqual([null, null, null, null]);
   });
 });
 
@@ -400,13 +427,13 @@ describe("cards.print", () => {
     const t = await seeded();
     const print = await t.query(api.cards.print, { cardKey: DON, printKey: "prt_00000000d0d1" });
     expect(print).toMatchObject({
-      card: { key: DON, number: null, donDesign: "OP-01:monkey-d-luffy", category: "don", name: "DON!! Card (Monkey.D.Luffy)" },
+      card: { key: DON, number: null, donDesign: "PRB-01:don-card-monkey-d-luffy", category: "don", name: "DON!! Card (Monkey.D.Luffy)" },
       site: "tcgcsv",
       listUrl: null,
       printing: {
         variant: "gold",
-        imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg",
-        tcgplayerUrl: "https://www.tcgplayer.com/product/512345",
+        imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512346_in_1000x1000.jpg",
+        tcgplayerUrl: "https://www.tcgplayer.com/product/512346",
       },
     });
   });
