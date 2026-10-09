@@ -10,12 +10,14 @@ import {
   type SyncRecord,
   type SyncedTable,
   Refusal,
+  RETIRED_TYPE,
   SYNCED_TABLES,
   TYPE_TO_TABLE,
   parseManifest,
   mainFromRefs,
   sameRecord,
   refuseMissingImage,
+  retiredKeys,
   sha256Hex,
   verifyFile,
 } from "./syncCore";
@@ -27,13 +29,16 @@ import {
 // data_syncs, and nothing is written. Pass 2 re-fetches each file at the same
 // commit (raw URLs at a SHA are immutable, and the hash is checked again) and
 // upserts by key in batches, so only one file is in memory at a time.
-// Records are never deleted, matching the contract.
+// Upserts never delete. The one delete is a printing the data repo lists in
+// data/retired_printings.jsonl: after the upserts, it goes with every row on
+// its exact key (product listings, claims, locators, links).
 //
 // Run by hand: npx convex run dataSync:run '{"force": true}'
 
 const DEFAULT_REPO = "hotavocado/koala-kollect-data";
 const BATCH_SIZE = 200;
 const UNPROXIED_KEYS_LISTED = 50;
+const RETIRE_BATCH_SIZE = 20;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 // A sync row still "running" after this long is treated as dead, not live.
 const RUNNING_TTL_MS = 30 * 60 * 1000;
@@ -121,12 +126,24 @@ export const run = internalAction({
 
     // Pass 1: verify everything before writing anything.
     let manifest: Manifest;
+    const retired: string[] = [];
     try {
       if (commit === null || manifestBytes === null) throw new Refusal(fetchError ?? "no manifest");
       manifest = parseManifest(new TextDecoder().decode(manifestBytes));
+      const live = new Set<string>();
+      const retiredAt: { path: string; line: number; key: string }[] = [];
       for (const [path, entry] of Object.entries(manifest.files)) {
         const records = await verifyFile(path, await fetchFile(commit, path), entry);
-        if (entry.type === "printing") refuseMissingImage(path, records);
+        if (entry.type === "printing") {
+          refuseMissingImage(path, records);
+          for (const r of records) live.add(r.key);
+        } else if (entry.type === RETIRED_TYPE) {
+          retiredKeys(path, records).forEach((key, i) => retiredAt.push({ path, line: i + 1, key }));
+        }
+      }
+      for (const { path, line, key } of retiredAt) {
+        if (live.has(key)) throw new Refusal(`${path} line ${line}: ${key} is retired and still a printing in this commit`);
+        retired.push(key);
       }
     } catch (e) {
       // A Refusal is a contract violation; anything else is our failure. Either
@@ -148,9 +165,11 @@ export const run = internalAction({
     // an "ok" sync is skipped). Pass 1 has already proven the files, so what
     // remains is a network failure or a record the Convex schema rejects.
     let upserted = 0;
+    let retiredCount = 0;
     const unproxied: Pick<Doc<"printings">, "key" | "site">[] = [];
     try {
       for (const [path, entry] of Object.entries(manifest.files)) {
+        if (entry.type === RETIRED_TYPE) continue; // read in pass 1, applied below
         const records = await verifyFile(path, await fetchFile(commit, path), entry);
         const table = TYPE_TO_TABLE[entry.type];
         if (entry.type === "printing") {
@@ -169,12 +188,18 @@ export const run = internalAction({
           upserted += r.inserted + r.updated;
         }
       }
+      // After the upserts, so a locator the same commit moved onto a surviving
+      // printing already points there. The file stays in the data repo, so
+      // every later sync re-reads it and finds nothing left to delete.
+      for (let i = 0; i < retired.length; i += RETIRE_BATCH_SIZE) {
+        retiredCount += await ctx.runMutation(internal.dataSync.retireBatch, { keys: retired.slice(i, i + RETIRE_BATCH_SIZE) });
+      }
       // Inside the try so a failed rebuild closes the sync "failed" and the
       // next run retries the commit; an "ok" commit is never revisited.
       await rebuildCardSets(ctx);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      await ctx.runMutation(internal.dataSync.finish, { syncId, status: "failed", refusal: message, upserted });
+      await ctx.runMutation(internal.dataSync.finish, { syncId, status: "failed", refusal: message, upserted, retired: retiredCount });
       return { status: "failed", data_commit: commit, detail: message };
     }
 
@@ -191,11 +216,13 @@ export const run = internalAction({
       syncId,
       status: "ok",
       upserted,
+      retired: retiredCount,
       unproxied_images: n,
       ...(n > 0 && { unproxied_image_keys: listed, unproxied_image_sites: sites }),
     });
     // "2 printing images not proxied (en 1, tcgcsv 1): prt_a, prt_b"
-    let detail = `${upserted} rows inserted or updated; ${n} printing ${n === 1 ? "image" : "images"} not proxied`;
+    const retiredText = `${retiredCount} ${retiredCount === 1 ? "printing" : "printings"} retired`;
+    let detail = `${upserted} rows inserted or updated, ${retiredText}; ${n} printing ${n === 1 ? "image" : "images"} not proxied`;
     if (n > 0) {
       const more = n > listed.length ? `, and ${n - listed.length} more` : "";
       detail += ` (${sites.map((s) => `${s.site} ${s.count}`).join(", ")}): ${listed.join(", ")}${more}`;
@@ -234,6 +261,7 @@ export const finish = internalMutation({
     status: v.union(v.literal("ok"), v.literal("refused"), v.literal("failed")),
     refusal: v.optional(v.string()),
     upserted: v.optional(v.number()),
+    retired: v.optional(v.number()),
     unproxied_images: v.optional(v.number()),
     unproxied_image_keys: v.optional(v.array(v.string())),
     unproxied_image_sites: v.optional(v.array(v.object({ site: printingSite, count: v.number() }))),
@@ -261,6 +289,32 @@ export const upsertBatch = internalMutation({
       }
     }
     return { inserted, updated };
+  },
+});
+
+// Deletes each retired printing and every row on its exact key, through the
+// by_printing indexes (eq, never a prefix range). Returns the printings
+// deleted; a key already gone counts 0.
+export const retireBatch = internalMutation({
+  args: { keys: v.array(v.string()) },
+  handler: async (ctx, { keys }) => {
+    let deleted = 0;
+    for (const key of keys) {
+      const printing = await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", key)).unique();
+      if (printing !== null) {
+        await ctx.db.delete(printing._id);
+        deleted++;
+      }
+      const rows = [
+        ...(await ctx.db.query("printing_products").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
+        ...(await ctx.db.query("printing_distributions").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
+        ...(await ctx.db.query("printing_locators").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
+        ...(await ctx.db.query("printing_links").withIndex("by_printing_a", (q) => q.eq("printing_a", key)).collect()),
+        ...(await ctx.db.query("printing_links").withIndex("by_printing_b", (q) => q.eq("printing_b", key)).collect()),
+      ];
+      for (const row of rows) await ctx.db.delete(row._id);
+    }
+    return deleted;
   },
 });
 
