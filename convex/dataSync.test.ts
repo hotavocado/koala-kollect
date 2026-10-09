@@ -81,6 +81,8 @@ function serve(repos: Record<string, Map<string, Body>>, main: string | number =
 
 afterEach(() => vi.unstubAllGlobals());
 
+const newTest = () => convexTest(schema, modules);
+
 async function counts(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
     const out: Record<string, number> = {};
@@ -212,6 +214,165 @@ describe("dataSync.run", () => {
       expect(r.detail).toMatch(
         new RegExp(`; ${60 + N} printing images not proxied \\(en 60, tcgcsv ${N}\\): .+, and ${10 + N} more$`),
       );
+    });
+  });
+
+  // data/retired_printings.jsonl names printings the data repo removed (a cn
+  // CMS double-save collapsed onto its survivor). Upserts never delete, so the
+  // sync deletes each listed printing and every row that hangs off it, by the
+  // exact printing key.
+  describe("retired printings", () => {
+    const RETIRED = "prt_000000000001"; // the fixture printing with a row in every dependent table
+    const SURVIVOR = "prt_000000000002";
+    const PREFIXED = `${RETIRED}1`; // shares the retired key as a prefix and must survive
+    const RETIRED_PATH = "data/retired_printings.jsonl";
+    const DEPENDENTS = ["printing_products", "printing_distributions", "printing_locators"] as const;
+
+    function retiredRow(key: string, extra: Record<string, unknown> = {}) {
+      return JSON.stringify({
+        key,
+        printing_key: key,
+        reason: "cn CMS double-save",
+        retired_at: "2026-10-09T00:00:00Z",
+        source_ids: ["4648"],
+        ...extra,
+      });
+    }
+
+    // The fixture plus a printing whose key has the retired key as a prefix,
+    // listed under the same product.
+    function withPrefixed() {
+      const files = fixtureFiles();
+      for (const f of Object.values(files)) {
+        if (f.type !== "printing" && f.type !== "printing_product") continue;
+        const line = f.lines.map((l) => JSON.parse(l) as Rec).find((r) => r.key === RETIRED || r.printing_key === RETIRED);
+        if (!line) continue;
+        const copy = f.type === "printing" ? { ...line, key: PREFIXED } : { ...line, printing_key: PREFIXED, key: `${PREFIXED}@${String(line.product_key)}` };
+        f.lines.push(JSON.stringify(copy));
+      }
+      return files;
+    }
+
+    // What the data repo commits after retiring RETIRED: its printing and its
+    // product, claim and link rows are gone, its locator now points at the
+    // survivor, and the retired file lists it.
+    function afterRetire(files: ReturnType<typeof fixtureFiles>) {
+      for (const f of Object.values(files)) {
+        f.lines = f.lines.flatMap((l) => {
+          const r = JSON.parse(l) as Rec;
+          if (f.type === "printing_locator" && r.printing_key === RETIRED) return [JSON.stringify({ ...r, printing_key: SURVIVOR })];
+          if (r.key === RETIRED && f.type === "printing") return [];
+          if (r.printing_key === RETIRED || r.printing_a === RETIRED || r.printing_b === RETIRED) return [];
+          return [l];
+        });
+      }
+      files[RETIRED_PATH] = { type: "retired_printing" as RecordType, lines: [retiredRow(RETIRED)] };
+      return files;
+    }
+
+    async function rowsFor(t: ReturnType<typeof newTest>, key: string) {
+      return await t.run(async (ctx) => {
+        const out: Record<string, number> = {
+          printings: (await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", key)).collect()).length,
+          printing_links:
+            (await ctx.db.query("printing_links").withIndex("by_printing_a", (q) => q.eq("printing_a", key)).collect()).length +
+            (await ctx.db.query("printing_links").withIndex("by_printing_b", (q) => q.eq("printing_b", key)).collect()).length,
+        };
+        for (const table of DEPENDENTS) {
+          out[table] = (await ctx.db.query(table).withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()).length;
+        }
+        return out;
+      });
+    }
+
+    test("deletes the printing and every row on its key, and nothing on any other key", async () => {
+      const t = newTest();
+      serve({ [COMMIT_A]: await repoAt(withPrefixed()), [COMMIT_B]: await repoAt(afterRetire(withPrefixed())) });
+      await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      // Every dependent table holds a row for the retired key before, so an
+      // empty result after is the delete and not an empty fixture.
+      expect(await rowsFor(t, RETIRED)).toEqual({ printings: 1, printing_links: 1, printing_products: 1, printing_distributions: 1, printing_locators: 1 });
+      const prefixedBefore = await rowsFor(t, PREFIXED);
+      const before = await counts(t);
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_B });
+
+      expect(r.status).toBe("ok");
+      expect(await rowsFor(t, RETIRED)).toEqual({ printings: 0, printing_links: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0 });
+      expect(await rowsFor(t, PREFIXED)).toEqual(prefixedBefore);
+      expect(prefixedBefore).toMatchObject({ printings: 1, printing_products: 1 });
+      expect(await counts(t)).toEqual({
+        ...before,
+        printings: before.printings - 1,
+        printing_products: before.printing_products - 1,
+        printing_distributions: before.printing_distributions - 1,
+        printing_links: before.printing_links - 1,
+      });
+      expect(r.detail).toMatch(/, 1 printing retired;/);
+      expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", retired: 1 });
+    });
+
+    // The cn dedupe moves the extra ids' locators onto the survivor in the
+    // same commit that retires them. The locator key is unchanged, so only
+    // its printing_key says which printing it belongs to.
+    test("keeps a locator the same commit moved onto the survivor", async () => {
+      const t = newTest();
+      serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(afterRetire(fixtureFiles())) });
+      await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const [locator] = await t.run(async (ctx) =>
+        await ctx.db.query("printing_locators").withIndex("by_printing", (q) => q.eq("printing_key", RETIRED)).collect(),
+      );
+
+      await t.action(internal.dataSync.run, { commit: COMMIT_B });
+
+      const moved = await t.run(async (ctx) =>
+        await ctx.db.query("printing_locators").withIndex("by_key", (q) => q.eq("key", locator.key)).unique(),
+      );
+      expect(moved).toMatchObject({ key: locator.key, printing_key: SURVIVOR });
+    });
+
+    test("re-reading the same retired file deletes nothing more", async () => {
+      const t = newTest();
+      serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(afterRetire(fixtureFiles())) });
+      await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      await t.action(internal.dataSync.run, { commit: COMMIT_B });
+      const after = await counts(t);
+
+      const again = await t.action(internal.dataSync.run, { commit: COMMIT_B, force: true });
+
+      expect(again.status).toBe("ok");
+      expect(again.detail).toMatch(/, 0 printings retired;/);
+      expect(await counts(t)).toEqual(after);
+      expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", upserted: 0, retired: 0 });
+    });
+
+    test.each<[string, (files: ReturnType<typeof fixtureFiles>) => void, RegExp]>([
+      [
+        "a retired key that is still a printing in the same commit",
+        (files) => { files[RETIRED_PATH] = { type: "retired_printing" as RecordType, lines: [retiredRow(RETIRED)] }; },
+        /^data\/retired_printings\.jsonl line 1: prt_000000000001 is retired and still a printing in this commit$/,
+      ],
+      [
+        "a row whose key is not its printing_key",
+        (files) => { files[RETIRED_PATH] = { type: "retired_printing" as RecordType, lines: [retiredRow("prt_gone", { printing_key: "prt_other" })] }; },
+        /^data\/retired_printings\.jsonl line 1: key prt_gone is not its printing_key "prt_other"$/,
+      ],
+      [
+        "a row with no reason",
+        (files) => { files[RETIRED_PATH] = { type: "retired_printing" as RecordType, lines: [retiredRow("prt_gone", { reason: undefined })] }; },
+        /^data\/retired_printings\.jsonl line 1: prt_gone has no reason$/,
+      ],
+    ])("refuses %s and writes nothing", async (_name, change, message) => {
+      const t = newTest();
+      const files = fixtureFiles();
+      change(files);
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+      expect(r.status).toBe("refused");
+      expect(r.detail).toMatch(message);
+      expect(await counts(t)).toEqual(EMPTY);
     });
   });
 

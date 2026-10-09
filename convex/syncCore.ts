@@ -20,7 +20,12 @@ export type RecordType = keyof typeof TYPE_TO_TABLE;
 export type SyncedTable = (typeof TYPE_TO_TABLE)[RecordType];
 export const SYNCED_TABLES = Object.values(TYPE_TO_TABLE) as SyncedTable[];
 
-export type ManifestEntry = { type: RecordType; rows: number; sha256: string };
+// Not a table: data/retired_printings.jsonl lists printings the data repo
+// removed, and the sync deletes them (upserts never do).
+export const RETIRED_TYPE = "retired_printing";
+export type ManifestType = RecordType | typeof RETIRED_TYPE;
+
+export type ManifestEntry = { type: ManifestType; rows: number; sha256: string };
 export type Manifest = {
   schema_version: 1;
   generated_at: string;
@@ -54,7 +59,7 @@ export function parseManifest(text: string): Manifest {
   for (const [path, entry] of Object.entries(m.files as Record<string, unknown>)) {
     if (!DATA_PATH.test(path)) throw new Refusal(`manifest.json lists ${path}, which is not a data file path`);
     const e = entry as Record<string, unknown>;
-    if (typeof e?.type !== "string" || !(e.type in TYPE_TO_TABLE)) {
+    if (typeof e?.type !== "string" || !(e.type in TYPE_TO_TABLE || e.type === RETIRED_TYPE)) {
       throw new Refusal(`manifest.json: ${path} has unknown type ${JSON.stringify(e?.type)}`);
     }
     if (typeof e.rows !== "number" || !Number.isInteger(e.rows) || e.rows < 0) {
@@ -63,7 +68,7 @@ export function parseManifest(text: string): Manifest {
     if (typeof e.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(e.sha256)) {
       throw new Refusal(`manifest.json: ${path} has invalid sha256`);
     }
-    files[path] = { type: e.type as RecordType, rows: e.rows, sha256: e.sha256 };
+    files[path] = { type: e.type as ManifestType, rows: e.rows, sha256: e.sha256 };
   }
   return { schema_version: 1, generated_at: m.generated_at, files };
 }
@@ -151,5 +156,21 @@ export function refuseMissingImage(path: string, records: SyncRecord[]): void {
     if (r.site !== "tcgcsv" && typeof r.image_url !== "string") {
       throw new Refusal(`${path} line ${i + 1}: printing ${r.key} on ${String(r.site)} has no image_url`);
     }
+  });
+}
+
+// Reads a retired_printings file into its printing keys. Each row is
+// {key, printing_key, reason, retired_at, source_ids}, with key equal to
+// printing_key (every data row carries a key). Pass 1 also refuses a key that
+// is still a printing in the same commit, so a delete never races an upsert.
+export function retiredKeys(path: string, records: SyncRecord[]): string[] {
+  return records.map((r, i) => {
+    const at = `${path} line ${i + 1}`;
+    if (r.printing_key !== r.key) {
+      throw new Refusal(`${at}: key ${r.key} is not its printing_key ${JSON.stringify(r.printing_key)}`);
+    }
+    if (typeof r.reason !== "string" || r.reason === "") throw new Refusal(`${at}: ${r.key} has no reason`);
+    if (typeof r.retired_at !== "string") throw new Refusal(`${at}: ${r.key} has no retired_at`);
+    return r.key;
   });
 }

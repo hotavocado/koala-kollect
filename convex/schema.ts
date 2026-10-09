@@ -299,6 +299,7 @@ export default defineSchema({
     status: v.union(v.literal("running"), v.literal("ok"), v.literal("refused"), v.literal("failed")),
     refusal: v.optional(v.string()), // e.g. "sha256 mismatch on data/printings/jp.jsonl"
     upserted: v.optional(v.number()),
+    retired: v.optional(v.number()), // printings deleted by data/retired_printings.jsonl
     // On an ok sync: printings in the commit whose image the proxy refuses
     // (they show the text face), and when non-zero their count per site and
     // the first 50 of their keys.
