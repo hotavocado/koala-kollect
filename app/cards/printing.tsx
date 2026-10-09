@@ -1,7 +1,7 @@
 "use client";
 
 import type { CardClaim, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { handoutWhen, quantityNoteShown, releaseLabel } from "./ui";
+import { confidenceShown, handoutWhen, quantityNoteShown, releaseLabel } from "./ui";
 
 // Shared by the card page and each print's page, so a print's origin reads the
 // same in both places.
@@ -24,6 +24,7 @@ export const VARIANT_LABEL: Record<CardPrinting["variant"], string> = {
   reprint: "Reprint",
   manga: "Manga",
   serial: "Serial",
+  stamped: "Stamped",
   other: "Other",
 };
 
@@ -102,6 +103,8 @@ export function ClaimLine({ claim: c }: { claim: CardClaim }) {
   ].filter(Boolean);
   const inferred = c.confidence === "inferred";
   const note = quantityNoteShown(c.quantityNote, c.quote);
+  const shown = confidenceShown(c.source, c.confidence);
+  const confidence = shown && CONFIDENCE_LABEL[shown];
   return (
     // An inferred claim is set apart, so it never reads as settled.
     <div
@@ -112,9 +115,9 @@ export function ClaimLine({ claim: c }: { claim: CardClaim }) {
       {note && <span className="text-muted-foreground">{note}</span>}
       <span className="break-words">“{c.quote}”</span>
       <span className="text-xs text-muted-foreground">
-        {CONFIDENCE_LABEL[c.confidence] && (
+        {confidence && (
           <>
-            <span className={inferred ? "font-medium text-foreground" : undefined}>{CONFIDENCE_LABEL[c.confidence]}</span>
+            <span className={inferred ? "font-medium text-foreground" : undefined}>{confidence}</span>
             {" · "}
           </>
         )}

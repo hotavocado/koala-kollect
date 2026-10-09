@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cardLabel, cnOnly, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
+import { cardLabel, cnOnly, confidenceShown, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
 
 describe("cardLabel", () => {
   const base = { name: null, number: null, donDesign: null };
@@ -101,5 +101,22 @@ describe("cnOnly", () => {
 
   test("a card with no printings yet is not cn-only", () => {
     expect(cnOnly([])).toBe(false);
+  });
+});
+
+describe("confidenceShown", () => {
+  test("a tcgcsv claim names no confidence: the TCGplayer link is its provenance", () => {
+    expect(confidenceShown("tcgcsv", "corroborated")).toBeNull();
+    expect(confidenceShown("tcgcsv", "authoritative")).toBeNull();
+  });
+
+  test("an inferred claim says so whatever its source", () => {
+    expect(confidenceShown("tcgcsv", "inferred")).toBe("inferred");
+    expect(confidenceShown("official_event", "inferred")).toBe("inferred");
+  });
+
+  test("every other source keeps its confidence", () => {
+    expect(confidenceShown("namuwiki", "corroborated")).toBe("corroborated");
+    expect(confidenceShown("official_cardlist", "authoritative")).toBe("authoritative");
   });
 });

@@ -407,6 +407,68 @@ describe("a tcgcsv printing with no image yet", () => {
   });
 });
 
+// A stamped Release Event print is listed by no official site, so it comes
+// from tcgcsv under the numbered card it stamps, keyed by its TCGplayer
+// product like a DON finish.
+describe("a stamped print", () => {
+  const STAMPED = "prt_00000000e0e1";
+
+  async function seededWithStamp() {
+    const t = await seeded();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("printings", {
+        key: STAMPED,
+        card_key: ZORO,
+        site: "tcgcsv",
+        rarity: "L",
+        variant: "stamped",
+        image_url: "https://tcgplayer-cdn.tcgplayer.com/product/600001_in_1000x1000.jpg",
+        source_text: "Roronoa Zoro (Release Event)",
+        block_icon: null,
+        first_seen_at: T,
+      });
+      await ctx.db.insert("printing_locators", {
+        key: "tcgcsv:600001:Normal",
+        printing_key: STAMPED,
+        site: "tcgcsv",
+        image_id: "600001:Normal",
+        first_seen_at: T,
+      });
+    });
+    return t;
+  }
+
+  test("reads last, under TCGplayer, with its product link, and leaves the card's face alone", async () => {
+    const before = await (await seeded()).query(api.cards.detail, { key: ZORO });
+    const t = await seededWithStamp();
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    expect(card?.regions.map((r) => r.site)).toEqual([...(before?.regions.map((r) => r.site) ?? []), "tcgcsv"]);
+    expect(card?.regions.at(-1)).toMatchObject({
+      site: "tcgcsv",
+      listUrl: null,
+      printings: [
+        {
+          key: STAMPED,
+          variant: "stamped",
+          imageIds: ["600001:Normal"],
+          tcgplayerUrl: "https://www.tcgplayer.com/product/600001",
+        },
+      ],
+    });
+    // The card keeps its official base image; a stamp is never the face.
+    expect(before?.imageUrl).toBeTruthy();
+    expect(card?.imageUrl).toBe(before?.imageUrl);
+  });
+
+  test("its print page reads the same printing the card page lists", async () => {
+    const t = await seededWithStamp();
+    const print = await t.query(api.cards.print, { cardKey: ZORO, printKey: STAMPED });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    expect(print).toMatchObject({ site: "tcgcsv", listUrl: null, printing: { variant: "stamped" } });
+    expect(print?.printing).toEqual(card?.regions.at(-1)?.printings[0]);
+  });
+});
+
 describe("cards.print", () => {
   test("a parallel printing reads its own image, not the card's base face, and the same printing the card page lists", async () => {
     const t = await seeded();

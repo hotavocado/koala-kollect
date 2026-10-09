@@ -109,6 +109,14 @@ export function quantityNoteShown(note: string | null, quote: string): string | 
   return plain(note) === plain(quote) ? null : note;
 }
 
+// The confidence a claim line names. A tcgcsv claim's only source is TCGplayer's
+// own grouping, which its TCGplayer link already names, so "corroborated" there
+// would read as two sources agreeing and is not shown. "inferred" always is: it
+// is the word that keeps a claim from reading as settled.
+export function confidenceShown<C extends string>(source: string, confidence: C): C | null {
+  return source === "tcgcsv" && confidence !== "inferred" ? null : confidence;
+}
+
 // Every printing of the card is on cn's list and no other site's (P-122 to
 // P-134, Special Card Set vol.2). Such a card has only Chinese text and no
 // official page to link to, and the card page says why.
