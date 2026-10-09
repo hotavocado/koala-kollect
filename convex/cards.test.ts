@@ -115,6 +115,55 @@ describe("cards.browse", () => {
       name: null,
     });
   });
+
+  test("a DON card reads its tcgcsv name and its normal printing's image over gold", async () => {
+    const t = convexTest(schema, modules);
+    const C = "card_d0d0d0d0d0d0";
+    const img = (id: number) => `https://tcgplayer-cdn.tcgplayer.com/product/${id}_in_1000x1000.jpg`;
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", {
+        key: C,
+        don_design: "OP-01:monkey-d-luffy",
+        category: "don",
+        colors: [],
+        attributes: [],
+        facts_site: "tcgcsv",
+        first_seen_at: T,
+      });
+      await ctx.db.insert("card_observations", {
+        key: `${C}:tcgcsv:0d0d0d0d0d0d0d0d`,
+        card_key: C,
+        site: "tcgcsv",
+        lang: "en",
+        observation_hash: "0d0d0d0d0d0d0d0d",
+        name: "DON!! Card (Monkey.D.Luffy)",
+        category: "don",
+        colors: [],
+        attributes: [],
+        types: [],
+        first_seen_at: T,
+      });
+      // Gold inserted first, so insertion order alone would pick its image.
+      for (const [key, variant, id] of [
+        ["prt_00000000d0d1", "gold", 512345],
+        ["prt_00000000d0d2", "normal", 512344],
+      ] as const) {
+        await ctx.db.insert("printings", {
+          key,
+          card_key: C,
+          site: "tcgcsv",
+          rarity: "DON",
+          variant,
+          image_url: img(id),
+          source_text: "",
+          block_icon: null,
+          first_seen_at: T,
+        });
+      }
+    });
+    const res = await t.query(api.cards.browse, { paginationOpts: PAGE });
+    expect(res.page[0]).toMatchObject({ name: "DON!! Card (Monkey.D.Luffy)", imageUrl: img(512344), printings: 2 });
+  });
 });
 
 describe("cards.lastSync", () => {

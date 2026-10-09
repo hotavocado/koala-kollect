@@ -92,6 +92,7 @@ describe("cards.detail", () => {
       imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png",
       sourceText: "-ROMANCE DAWN- [OP-01]",
       imageIds: ["OP01-001_p1"],
+      tcgplayerUrl: null,
       // The fixture lists the printing under a series page whose
       // product row is not in the fixture, and the listing is closed.
       // Both survive: the page shows what is known, not nothing.
@@ -127,22 +128,34 @@ describe("cards.detail", () => {
     });
   });
 
-  test("a DON card reads its gold printing under tcgcsv with an empty provenance string", async () => {
+  test("a DON card takes its name from tcgcsv and lists normal, foil, gold under it", async () => {
     const t = await seeded();
     const card = await t.query(api.cards.detail, { key: DON });
     expect(card).toMatchObject({
       category: "don",
       number: null,
       donDesign: "OP-01:monkey-d-luffy",
-      text: null,
+      text: { site: "tcgcsv", name: "DON!! Card (Monkey.D.Luffy)", types: [] },
       officialUrl: null,
+      // The normal finish stands where a base printing would.
+      imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512344_in_1000x1000.jpg",
     });
     expect(card?.regions).toHaveLength(1);
     expect(card?.regions[0]).toMatchObject({
       site: "tcgcsv",
       listUrl: null,
-      printings: [{ key: "prt_00000000d0d1", variant: "gold", sourceText: "", imageIds: ["512345"] }],
+      printings: [
+        { key: "prt_00000000d0d2", variant: "normal", sourceText: "", imageIds: ["512344:Normal"], tcgplayerUrl: "https://www.tcgplayer.com/product/512344" },
+        { key: "prt_00000000d0d3", variant: "foil", imageIds: ["512344:Foil"], tcgplayerUrl: "https://www.tcgplayer.com/product/512344" },
+        { key: "prt_00000000d0d1", variant: "gold", imageIds: ["512345:Foil"], tcgplayerUrl: "https://www.tcgplayer.com/product/512345" },
+      ],
     });
+  });
+
+  test("an official site's printing carries no TCGplayer link", async () => {
+    const t = await seeded();
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    for (const r of card?.regions ?? []) for (const p of r.printings) expect(p.tcgplayerUrl).toBeNull();
   });
 
   test("printings group by site in page order, base first within a site", async () => {
