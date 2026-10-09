@@ -4,81 +4,9 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
-import type { CardClaim, CardDetail, CardListing, CardPrinting, CardRegion } from "@/convex/cards";
-import { cardLabel, cnOnly, ColorDots, handoutWhen, Notice, quantityNoteShown, releaseLabel } from "../ui";
-
-const SITE_LABEL: Record<CardRegion["site"], string> = {
-  en: "English",
-  "asia-en": "Asia English",
-  jp: "Japanese",
-  tc: "Traditional Chinese",
-  cn: "Simplified Chinese",
-  tcgcsv: "TCGplayer",
-};
-
-const VARIANT_LABEL: Record<CardPrinting["variant"], string> = {
-  base: "Base",
-  normal: "Normal",
-  foil: "Foil",
-  parallel: "Parallel",
-  alt_art: "Alt art",
-  gold: "Gold",
-  reprint: "Reprint",
-  manga: "Manga",
-  serial: "Serial",
-  other: "Other",
-};
-
-const SOURCE_LABEL: Record<CardClaim["source"], string> = {
-  official_cardlist: "Official card list",
-  official_event: "Official event page",
-  official_topic: "Official news",
-  tcgcsv: "TCGplayer",
-  namuwiki: "Namuwiki",
-  manual: "Added by hand",
-};
-
-// An official claim's source link already says so, so it carries no label.
-const CONFIDENCE_LABEL: Record<CardClaim["confidence"], string | null> = {
-  authoritative: null,
-  corroborated: "Corroborated",
-  inferred: "Inferred, not yet confirmed",
-};
-
-type Distribution = NonNullable<CardClaim["distribution"]>;
-
-const KIND_LABEL: Record<Distribution["kind"], string> = {
-  promo_pack: "Promo pack",
-  tournament_prize: "Tournament prize",
-  participation: "Participation prize",
-  event_pack: "Event pack",
-  meetup: "Meetup",
-  pre_release: "Pre-release",
-  magazine_insert: "Magazine insert",
-  retail_tieup: "Retail tie-in",
-  bundle: "Bundle",
-  movie: "Movie handout",
-  championship: "Championship",
-  store_tournament: "Store tournament",
-  online: "Online",
-  other: "Other",
-};
-
-const REGION_LABEL: Record<Distribution["region"], string> = {
-  en: "English region",
-  asia: "Asia",
-  jp: "Japan",
-  cn: "China",
-};
-
-const TIER_LABEL: Record<NonNullable<CardClaim["tier"]>, string> = {
-  participant: "For participants",
-  winner: "For winners",
-  finalist: "For finalists",
-  top_cut: "For the top cut",
-  judge: "For judges",
-  all: "For everyone",
-};
+import type { CardDetail, CardPrinting, CardRegion } from "@/convex/cards";
+import { capitalize, CardFace, OfficialLink, SITE_LABEL, VARIANT_LABEL } from "../printing";
+import { cardLabel, cnOnly, ColorDots, Notice } from "../ui";
 
 // Same guard as the browse page: the Convex hooks throw without a deployment.
 export function CardDetailView({ cardKey }: { cardKey: string }) {
@@ -150,7 +78,7 @@ function Detail({ card }: { card: CardDetail }) {
             {card.donDesign && (
               <p className="mt-2 text-sm text-muted-foreground">
                 No official card list carries DON!! cards, so this one comes from TCGplayer&apos;s catalogue. The
-                name is TCGplayer&apos;s, and each printing links to its TCGplayer listing.
+                name is TCGplayer&apos;s, and each printing&apos;s page links to its TCGplayer listing.
               </p>
             )}
           </div>
@@ -214,7 +142,7 @@ function Detail({ card }: { card: CardDetail }) {
             <ul className="flex flex-col gap-3">
               {region.printings.map((p) => (
                 <li key={p.key}>
-                  <PrintingRow printing={p} site={region.site} />
+                  <PrintingRow cardKey={card.key} label={label} printing={p} site={region.site} />
                 </li>
               ))}
             </ul>
@@ -225,10 +153,22 @@ function Detail({ card }: { card: CardDetail }) {
   );
 }
 
-function PrintingRow({ printing: p, site }: { printing: CardPrinting; site: CardRegion["site"] }) {
+// One print, linked to its own page. The row shows the print's own image and
+// what it is; its listings and origin claims live on the print page.
+function PrintingRow({ cardKey, label, printing: p, site }: { cardKey: string; label: string; printing: CardPrinting; site: CardRegion["site"] }) {
+  const origins = [...new Set(p.claims.map((c) => c.distribution?.name).filter(Boolean))];
   return (
-    <div className="flex gap-4 rounded-lg bg-layer-1 p-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+    <Link
+      href={`/cards/${cardKey}/${p.key}`}
+      className="flex gap-4 rounded-lg bg-layer-1 p-4 transition-colors hover:bg-layer-2"
+    >
+      <CardImage
+        imageUrl={p.imageUrl}
+        alt={`${label}, ${VARIANT_LABEL[p.variant]}`}
+        className="aspect-[63/88] w-16 shrink-0 rounded bg-layer-2 object-cover xs:w-20"
+        fallback={<ThumbFace text={VARIANT_LABEL[p.variant]} />}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-xs text-muted-foreground">
           {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds].join(" · ")}
         </p>
@@ -244,113 +184,25 @@ function PrintingRow({ printing: p, site }: { printing: CardPrinting; site: Card
           </p>
         )}
 
-        {p.tcgplayerUrl && (
-          <p className="text-sm">
-            <OfficialLink href={p.tcgplayerUrl}>TCGplayer listing</OfficialLink>
+        {p.claims.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {origins.length > 0 ? `From ${origins.join(", ")}` : "Where it came from"} · {p.claims.length} source
+            {p.claims.length === 1 ? "" : "s"}
           </p>
         )}
-
-        {p.listings.length > 0 && (
-          <div>
-            <p className="text-xs text-muted-foreground">Listed under</p>
-            <ul className="mt-1 flex flex-col gap-1 text-sm">
-              {p.listings.map((l) => (
-                <li key={l.productKey}>
-                  <ListingLine listing={l} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {p.claims.length > 0 && (
-          <div>
-            <p className="text-xs text-muted-foreground">Where it came from</p>
-            <ul className="mt-1 flex flex-col gap-2 text-sm">
-              {p.claims.map((c) => (
-                <li key={c.key}>
-                  <ClaimLine claim={c} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
-    </div>
-  );
-}
-
-function ListingLine({ listing: l }: { listing: CardListing }) {
-  // A listing whose product row has not synced still shows, by its series id.
-  const name = l.nameEn ?? l.name ?? `Series ${l.productKey.split(":")[1] ?? l.productKey}`;
-  // The product is one site's own, so its date needs no JP mark.
-  const released = releaseLabel({ releaseDate: l.releaseDate, releaseSite: null }, "day");
-  return (
-    <span className={l.removedAt ? "text-muted-foreground" : undefined}>
-      {[l.code, name].filter(Boolean).join(" ")}
-      {released && <span className="text-muted-foreground"> · {released}</span>}
-      {l.removedAt && <span> · no longer listed</span>}
-    </span>
-  );
-}
-
-function ClaimLine({ claim: c }: { claim: CardClaim }) {
-  const d = c.distribution;
-  const facts = [
-    d && KIND_LABEL[d.kind],
-    d && REGION_LABEL[d.region],
-    c.tier && TIER_LABEL[c.tier],
-    handoutWhen(c.startsOn, c.endsOn),
-  ].filter(Boolean);
-  const inferred = c.confidence === "inferred";
-  const note = quantityNoteShown(c.quantityNote, c.quote);
-  return (
-    // An inferred claim is set apart, so it never reads as settled.
-    <div
-      className={`flex flex-col gap-0.5 ${inferred ? "border-l-2 border-dashed border-muted-foreground/50 pl-2" : ""}`}
-    >
-      <span className="font-medium">{d ? d.name : "A source not yet in the database"}</span>
-      {facts.length > 0 && <span className="text-muted-foreground">{facts.join(" · ")}</span>}
-      {note && <span className="text-muted-foreground">{note}</span>}
-      <span className="break-words">“{c.quote}”</span>
-      <span className="text-xs text-muted-foreground">
-        {CONFIDENCE_LABEL[c.confidence] && (
-          <>
-            <span className={inferred ? "font-medium text-foreground" : undefined}>{CONFIDENCE_LABEL[c.confidence]}</span>
-            {" · "}
-          </>
-        )}
-        <OfficialLink href={c.sourceUrl}>{SOURCE_LABEL[c.source]}</OfficialLink>
+      <span aria-hidden="true" className="self-center text-muted-foreground">
+        ›
       </span>
+    </Link>
+  );
+}
+
+// A thumbnail's stand-in when the print has no image yet.
+function ThumbFace({ text }: { text: string }) {
+  return (
+    <div className="flex aspect-[63/88] w-16 shrink-0 items-center justify-center rounded bg-layer-2 p-1 text-center text-[10px] text-muted-foreground xs:w-20">
+      {text}
     </div>
   );
-}
-
-// The text face, when the card has no official image or it fails to load.
-function CardFace({ number, label }: { number: string | null; label: string }) {
-  return (
-    <div className="mx-auto flex aspect-[63/88] w-full max-w-[240px] flex-col items-center justify-center gap-2 rounded-md bg-layer-2 p-4 text-center">
-      {number && <span className="text-3xl font-semibold tracking-tight">{number}</span>}
-      <span className="text-sm text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-function OfficialLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`underline underline-offset-4 hover:text-foreground ${className ?? ""}`}
-    >
-      {children}
-      <span className="sr-only"> (opens in a new tab)</span>
-      <span aria-hidden="true"> ↗</span>
-    </a>
-  );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

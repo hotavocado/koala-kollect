@@ -441,6 +441,59 @@ function tcgplayerUrl(locators: Doc<"printing_locators">[]): string | null {
   return id ? `https://www.tcgplayer.com/product/${id}` : null;
 }
 
+export type PrintDetail = {
+  card: {
+    key: string;
+    number: string | null;
+    donDesign: string | null;
+    category: Doc<"cards">["category"];
+    colors: Doc<"cards">["colors"];
+    name: string | null;
+  };
+  site: Doc<"printings">["site"];
+  listUrl: string | null;
+  printing: CardPrinting;
+};
+
+// One print's own page. A printing row is the print: one release on one site,
+// so identical-looking reprints and the same promo on two sites stay apart.
+// The card key is checked so a print link never renders under another card.
+export const print = query({
+  args: { cardKey: v.string(), printKey: v.string() },
+  handler: async (ctx, { cardKey, printKey }): Promise<PrintDetail | null> => {
+    const p = await ctx.db
+      .query("printings")
+      .withIndex("by_key", (q) => q.eq("key", printKey))
+      .unique();
+    if (!p || p.card_key !== cardKey) return null;
+    const card = await ctx.db
+      .query("cards")
+      .withIndex("by_key", (q) => q.eq("key", cardKey))
+      .unique();
+    if (!card) return null;
+    const [observations, printing] = await Promise.all([
+      ctx.db
+        .query("card_observations")
+        .withIndex("by_card_site", (q) => q.eq("card_key", card.key))
+        .collect(),
+      loadPrinting(ctx, p),
+    ]);
+    return {
+      card: {
+        key: card.key,
+        number: card.number ?? null,
+        donDesign: card.don_design ?? null,
+        category: card.category,
+        colors: card.colors,
+        name: pickName(observations),
+      },
+      site: p.site,
+      listUrl: listUrl(p.site, card.number),
+      printing,
+    };
+  },
+});
+
 export const detail = query({
   args: { key: v.string() },
   handler: async (ctx, { key }): Promise<CardDetail | null> => {
