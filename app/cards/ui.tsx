@@ -137,8 +137,8 @@ export function Notice({ title, children }: { title: string; children: React.Rea
 export function ImageCredit() {
   return (
     <footer className="container pb-8 text-xs text-muted-foreground">
-      Card images © Eiichiro Oda/Shueisha, Toei Animation, from the official ONE PIECE CARD GAME card lists by
-      Bandai. Koala Kollect is an unofficial fan project.
+      Card images © Eiichiro Oda/Shueisha, Toei Animation, from the official ONE PIECE CARD GAME card lists and from
+      TCGplayer. Koala Kollect is an unofficial fan project.
     </footer>
   );
 }
