@@ -14,6 +14,7 @@ export const TYPE_TO_TABLE = {
   distribution: "distributions",
   printing_distribution: "printing_distributions",
   printing_link: "printing_links",
+  don_set: "don_sets",
 } as const;
 
 export type RecordType = keyof typeof TYPE_TO_TABLE;

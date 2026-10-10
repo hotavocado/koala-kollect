@@ -312,6 +312,20 @@ export default defineSchema({
     .index("by_printing_a", ["printing_a"])
     .index("by_printing_b", ["printing_b"]),
 
+  // Which set page a DON card belongs on. DON carry no set in their number, so
+  // the data repo maps each one: by its TCGplayer group, by an override when
+  // the product names another set, or to the promo page.
+  don_sets: defineTable({
+    key: v.string(), // the card's key, card_xxxxxxxxxxxx
+    printing_keys: v.array(v.string()), // the card's tcgcsv printings, sorted
+    don_design: v.string(),
+    set_slug: v.string(), // the en product code lowercased, or "promo"
+    source: v.union(v.literal("group"), v.literal("override"), v.literal("promo")),
+    first_seen_at: v.string(),
+  })
+    .index("by_key", ["key"])
+    .index("by_set_slug", ["set_slug"]),
+
   // App-only: which data-repo commit the tables above were synced from.
   data_syncs: defineTable({
     data_commit: v.string(),
