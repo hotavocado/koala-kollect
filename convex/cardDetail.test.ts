@@ -38,7 +38,7 @@ async function seeded() {
   return t;
 }
 
-function printing(key: string, site: "en" | "asia-en" | "jp" | "tc" | "cn", variant: "base" | "parallel" | "alt_art") {
+function printing(key: string, site: "en" | "jp" | "cn", variant: "base" | "parallel" | "alt_art") {
   return {
     key,
     card_key: ZORO,
@@ -186,7 +186,7 @@ describe("cards.detail", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("printings", printing("prt_00000000000a", "jp", "alt_art"));
       await ctx.db.insert("printings", printing("prt_00000000000b", "jp", "base"));
-      await ctx.db.insert("printings", printing("prt_00000000000c", "asia-en", "base"));
+      await ctx.db.insert("printings", printing("prt_00000000000c", "cn", "base"));
       await ctx.db.insert("printings", printing("prt_00000000000d", "en", "base"));
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
@@ -195,8 +195,8 @@ describe("cards.detail", () => {
       // ties on image id and falls back to key, so the unlocated parallels
       // prt_..2 and prt_..3 read before prt_..1 and its OP01-001_p1.
       ["en", ["prt_000000000004", "prt_00000000000d", "prt_000000000002", "prt_000000000003", "prt_000000000001"]],
-      ["asia-en", ["prt_00000000000c"]],
       ["jp", ["prt_00000000000b", "prt_00000000000a"]],
+      ["cn", ["prt_00000000000c"]],
     ]);
     // The face is a base printing, English first, as on the browse grid.
     expect(card?.imageUrl).toBe("https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png");
@@ -205,7 +205,6 @@ describe("cards.detail", () => {
   test("each site with a searchable list links to it; cn does not", async () => {
     const t = await seeded();
     await t.run(async (ctx) => {
-      await ctx.db.insert("printings", printing("prt_00000000000a", "tc", "base"));
       await ctx.db.insert("printings", printing("prt_00000000000b", "cn", "base"));
       await ctx.db.insert("printings", printing("prt_00000000000c", "jp", "base"));
     });
@@ -213,7 +212,6 @@ describe("cards.detail", () => {
     expect(card?.regions.map((r) => [r.site, r.listUrl])).toEqual([
       ["en", "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
       ["jp", "https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
-      ["tc", "https://asia-tc.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
       ["cn", null],
     ]);
   });
@@ -226,12 +224,12 @@ describe("cards.detail", () => {
         if (table === "cards") await ctx.db.insert(table, record as never);
       }
       await ctx.db.insert("printings", printing("prt_00000000000a", "cn", "base"));
-      await ctx.db.insert("printings", printing("prt_00000000000b", "asia-en", "parallel"));
+      await ctx.db.insert("printings", printing("prt_00000000000b", "jp", "parallel"));
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
     // The face is cn's base printing, but cn has no list to link to.
     expect(card?.imageUrl).toBe("https://example.test/cn/prt_00000000000a.png");
-    expect(card?.officialUrl).toBe("https://asia-en.onepiece-cardgame.com/cardlist/?freewords=OP01-001");
+    expect(card?.officialUrl).toBe("https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001");
   });
 
   test("parallels read in image id order, numerically, not by key", async () => {

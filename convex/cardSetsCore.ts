@@ -59,11 +59,11 @@ const BUCKET_TITLE: Record<SetKind, string> = {
   other: "Other cards",
 };
 
-// Whose product name becomes the title: asia-en writes titles in title case,
-// en often in capitals (englishTitle evens those out), and jp and tc only in
-// their own languages, so a product's own name_en goes ahead of theirs.
-const ENGLISH_SITES: Doc<"products">["site"][] = ["asia-en", "en"];
-const OTHER_SITES: Doc<"products">["site"][] = ["jp", "tc", "cn"];
+// Whose product name becomes the title: en writes titles, often in capitals
+// (englishTitle evens those out), and jp and cn only in their own languages,
+// so a product's own name_en goes ahead of theirs.
+const ENGLISH_SITES: Doc<"products">["site"][] = ["en"];
+const OTHER_SITES: Doc<"products">["site"][] = ["jp", "cn"];
 
 // Written as the products print them, so englishTitle leaves them alone.
 const BRAND_PHRASES = ["ONE PIECE CARD THE BEST", "ONE PIECE", "KAMI"];
@@ -71,7 +71,7 @@ const SMALL_WORDS = new Set(["a", "an", "and", "at", "by", "for", "in", "of", "o
 const COLOR_WORDS = new Set(["RED", "GREEN", "BLUE", "PURPLE", "BLACK", "YELLOW"]);
 
 // en writes most set names in capitals: "THE AZURE SEA’S SEVEN" reads as
-// "The Azure Sea’s Seven", as asia-en wrote it. Only a title that is all
+// "The Azure Sea’s Seven", the official title case. Only a title that is all
 // capitals is recased, so a deliberately mixed one ("ONE PIECE FILM edition")
 // is left as written, and so is any word with a digit ("GEAR5", "3D2Y"). A
 // starter's leading deck colour ("RED Shanks", "PURPLE/BLACK Monkey.D.Luffy")
@@ -130,8 +130,8 @@ function setTitle(products: ProductInput[]): string | null {
   return (other && productTitle(other.name)) || null;
 }
 
-// "BOOSTER PACK -Royal Blood- [OP-10]" -> "Royal Blood" (en, asia-en).
-// "スタートデッキ 麦わらの一味【ST-01】" -> "スタートデッキ 麦わらの一味" (jp, tc).
+// "BOOSTER PACK -Royal Blood- [OP-10]" -> "Royal Blood" (en).
+// "スタートデッキ 麦わらの一味【ST-01】" -> "スタートデッキ 麦わらの一味" (jp).
 export function productTitle(name: string): string {
   const dashed = /^.*? -(.+)- \[[^\]]+\]$/.exec(name);
   if (dashed) return dashed[1].trim();

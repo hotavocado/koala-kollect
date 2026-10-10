@@ -7,8 +7,6 @@ describe("proxiedImageUrl", () => {
     for (const [host, origin] of [
       ["www", "https://www.onepiece-cardgame.com"],
       ["en", "https://en.onepiece-cardgame.com"],
-      ["asia-en", "https://asia-en.onepiece-cardgame.com"],
-      ["asia-tc", "https://asia-tc.onepiece-cardgame.com"],
     ]) {
       const official = `${origin}/images/cardlist/card/OP01-001_p1.png`;
       expect(proxiedImageUrl(official)).toBe(`/api/card-image/${host}/OP01-001_p1.png`);

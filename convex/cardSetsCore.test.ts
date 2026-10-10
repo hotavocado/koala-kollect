@@ -50,15 +50,14 @@ describe("englishTitle", () => {
 describe("groupProducts", () => {
   const products = [
     product("en", "OP-13", "BOOSTER PACK -CARRYING ON HIS WILL- [OP-13]", "booster"),
-    product("asia-en", "OP-13", "BOOSTER PACK -Carrying on His Will- [OP-13]", "booster"),
     product("jp", "OP-13", "ブースターパック 受け継がれる意志【OP-13】", "booster"),
-    product("asia-en", "OP-15", "BOOSTER PACK -Adventure on KAMI’s Island- [OP-15]", "booster"),
+    product("en", "OP-15", "BOOSTER PACK -Adventure on KAMI’s Island- [OP-15]", "booster"),
     product("en", "OP15-EB04", "BOOSTER PACK -ADVENTURE ON KAMI’S ISLAND- [OP15-EB04]", "booster"),
-    product("asia-en", "OP-09", "BOOSTER PACK -Emperors in the New World- [OP-09]", "booster"),
-    product("asia-en", "EB-04", "EXTRA BOOSTER -EGGHEAD CRISIS- [EB-04]", "extra"),
-    product("asia-en", "ST-09", "STARTER DECK -Side Yamato- [ST-09]", "starter"),
-    product("asia-en", "ST-10", "ULTIMATE DECK -The Three Captains- [ST-10]", "starter"),
-    product("asia-en", "PRB-01", "PREMIUM BOOSTER -ONE PIECE CARD THE BEST- [PRB-01]", "premium"),
+    product("en", "OP-09", "BOOSTER PACK -Emperors in the New World- [OP-09]", "booster"),
+    product("en", "EB-04", "EXTRA BOOSTER -EGGHEAD CRISIS- [EB-04]", "extra"),
+    product("en", "ST-09", "STARTER DECK -Side Yamato- [ST-09]", "starter"),
+    product("en", "ST-10", "ULTIMATE DECK -The Three Captains- [ST-10]", "starter"),
+    product("en", "PRB-01", "PREMIUM BOOSTER -ONE PIECE CARD THE BEST- [PRB-01]", "premium"),
     product("jp", "ST-99", "スタートデッキ テスト【ST-99】", "starter"),
     product("en", undefined, "Promotion card", "promo_bucket"),
     product("jp", undefined, "プロモーションカード", "promo_bucket"),
@@ -86,10 +85,10 @@ describe("groupProducts", () => {
     expect(groups.map((g) => g.order)).toEqual(groups.map((_, i) => i));
   });
 
-  test("one set per code across sites, titled from asia-en first", () => {
+  test("one set per code across sites, titled from en first, recased", () => {
     const op13 = groups.find((g) => g.slug === "op-13");
     expect(op13).toMatchObject({ code: "OP-13", kind: "booster", title: "Carrying on His Will" });
-    expect(op13?.product_keys).toEqual(["asia-en:OP-13", "en:OP-13", "jp:OP-13"]);
+    expect(op13?.product_keys).toEqual(["en:OP-13", "jp:OP-13"]);
     // en only: its capitals recased, the brand kept.
     expect(groups.find((g) => g.slug === "op15-eb04")?.title).toBe("Adventure on KAMI’s Island");
     // jp only: the code is stripped, the rest kept.
@@ -131,15 +130,16 @@ describe("groupProducts by release date", () => {
     // en and jp disagree the other way.
     dated("en", "OP-10", "booster", "2025-03-21"),
     dated("jp", "OP-10", "booster", "2025-03-29"),
-    // jp only: its date stands in, marked jp.
+    // No en: jp's date stands in, marked jp. cn's later date is ignored,
+    // or op-11 would sort ahead of op-12.
     dated("jp", "OP-11", "booster", "2025-05-31"),
-    dated("asia-en", "OP-11", "booster", "2025-05-31"),
+    dated("cn", "OP-11", "booster", "2025-09-30"),
     // en row without a date: jp's date stands in.
     dated("en", "OP-12", "booster"),
     dated("jp", "OP-12", "booster", "2025-08-22"),
     // No date anywhere: after the dated sets, by code.
-    dated("asia-en", "OP-14", "booster"),
-    dated("asia-en", "OP-13", "booster"),
+    dated("cn", "OP-14", "booster"),
+    dated("cn", "OP-13", "booster"),
     // A partial date reads as undated, on en and on the jp fallback alike.
     dated("en", "OP-08", "booster", "2026"),
     dated("jp", "OP-08", "booster", "2026-12"),

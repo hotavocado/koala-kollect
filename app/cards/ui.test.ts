@@ -96,7 +96,7 @@ describe("cnOnly", () => {
 
   test("a card cn shares with any other site", () => {
     expect(cnOnly([{ site: "jp" }, { site: "cn" }])).toBe(false);
-    expect(cnOnly([{ site: "tc" }])).toBe(false);
+    expect(cnOnly([{ site: "en" }])).toBe(false);
   });
 
   test("a card with no printings yet is not cn-only", () => {

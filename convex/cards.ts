@@ -7,10 +7,10 @@ import type { Doc } from "./_generated/dataModel";
 // by dataSync, so these queries never write and never take a user.
 
 // Whose printed name to show when a card has several current observations.
-// English first because the browse page is in English; JP before the Chinese
-// sites because JP is the authority for card facts. tcgcsv last: it observes
+// English first because the browse page is in English; JP before cn because
+// JP is the authority for card facts. tcgcsv last: it observes
 // DON cards only, which no official site lists, so it never outranks one.
-const NAME_SITE_ORDER: Doc<"card_observations">["site"][] = ["en", "asia-en", "jp", "tc", "cn", "tcgcsv"];
+const NAME_SITE_ORDER: Doc<"card_observations">["site"][] = ["en", "jp", "cn", "tcgcsv"];
 
 export type BrowseCard = {
   key: string;
@@ -68,9 +68,7 @@ function cardImage(printings: Doc<"printings">[]): string | null {
 // link.
 const LIST_HOST: Partial<Record<Doc<"printings">["site"], string>> = {
   en: "en.onepiece-cardgame.com",
-  "asia-en": "asia-en.onepiece-cardgame.com",
   jp: "www.onepiece-cardgame.com",
-  tc: "asia-tc.onepiece-cardgame.com",
 };
 
 // The card's entry on one site's official list. The image hosts refuse
@@ -286,7 +284,7 @@ export const lastSync = query({
 // Region order on the page: English first, as on the browse page, then the
 // other official sites, then tcgcsv: DON printings, and the stamped Release
 // Event prints no official list carries.
-const REGION_ORDER: Doc<"printings">["site"][] = ["en", "asia-en", "jp", "tc", "cn", "tcgcsv"];
+const REGION_ORDER: Doc<"printings">["site"][] = ["en", "jp", "cn", "tcgcsv"];
 const VARIANT_ORDER: Doc<"printings">["variant"][] = [
   "base",
   "normal",

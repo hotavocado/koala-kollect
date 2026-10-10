@@ -7,9 +7,7 @@ import { confidenceShown, handoutWhen, quantityNoteShown, releaseLabel } from ".
 // same in both places.
 export const SITE_LABEL: Record<CardRegion["site"], string> = {
   en: "English",
-  "asia-en": "Asia English",
   jp: "Japanese",
-  tc: "Traditional Chinese",
   cn: "Simplified Chinese",
   tcgcsv: "TCGplayer",
 };
@@ -65,7 +63,6 @@ export const KIND_LABEL: Record<Distribution["kind"], string> = {
 
 export const REGION_LABEL: Record<Distribution["region"], string> = {
   en: "English region",
-  asia: "Asia",
   jp: "Japan",
   cn: "China",
 };
