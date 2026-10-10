@@ -25,8 +25,8 @@ function ConnectedSet({ slug }: { slug: string }) {
     return <Notice title="Set not found">There is no set at this address in the database.</Notice>;
   }
 
-  const { set, cards, fromOtherSets } = result;
-  const total = cards.length + fromOtherSets.length;
+  const { set, cards, fromOtherSets, don } = result;
+  const total = cards.length + fromOtherSets.length + don.length;
   const released = releaseLabel(set, "day");
   return (
     <>
@@ -55,6 +55,15 @@ function ConnectedSet({ slug }: { slug: string }) {
             Cards first printed elsewhere that this set also includes, such as SP cards and reprints.
           </p>
           <CardGrid cards={fromOtherSets} />
+        </section>
+      )}
+      {don.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">DON!! cards</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            DON!! cards that come with this set. They have no card number, so they sit apart from the list above.
+          </p>
+          <CardGrid cards={don} />
         </section>
       )}
     </>
