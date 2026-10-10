@@ -1,4 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
+import { MINOKOALA } from "./minokoala";
 
 // The page a QR code on a Minokoala card lands on, so it answers three things
 // in order: what this is, the art, and the way into the cards.
@@ -45,25 +47,22 @@ export default function Home() {
   );
 }
 
-// Holds the space for the mascot art (Minokoala, with Koala and Sabo) until
-// Mike's files arrive. Swap the inner placeholder for the image and keep the
-// frame, so the layout does not move when the art lands. Original art only:
-// nothing from the show goes in this slot.
+// Minokoala, served from the wiki through the optimizer (app/minokoala.ts).
+// The credit stays in fine print under the art.
 function ArtSlot() {
   return (
-    <figure
-      aria-label="Koala Kollect art, coming soon"
-      className="relative aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-lg bg-layer-2"
-    >
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-        <span
-          aria-hidden
-          className="flex size-16 items-center justify-center rounded-lg bg-primary font-heading text-xl font-semibold text-primary-foreground"
-        >
-          KK
-        </span>
-        <span className="text-xs">Art coming soon</span>
-      </div>
+    <figure className="flex w-full max-w-[420px] flex-col gap-2">
+      <Image
+        src={MINOKOALA.src}
+        alt="Minokoala, from the One Piece anime's concept art"
+        width={MINOKOALA.width}
+        height={MINOKOALA.height}
+        priority
+        className="h-auto w-full rounded-lg bg-layer-2"
+      />
+      <figcaption className="text-[11px] leading-snug text-muted-foreground">
+        Minokoala © Eiichiro Oda/Shueisha, Toei Animation
+      </figcaption>
     </figure>
   );
 }

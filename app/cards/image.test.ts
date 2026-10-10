@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { MINOKOALA } from "../minokoala";
 import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS, cardImageSrc, optimizedImageUrl, proxiedImageUrl, upstreamImageUrl } from "./image";
 
 describe("proxiedImageUrl", () => {
@@ -135,13 +136,17 @@ describe("optimizedImageUrl", () => {
   // a width CardImage asks for that the config lacks is refused (and falls
   // back to the full image), a width the config lists that nothing asks for
   // is one more derivative anyone could request.
-  test("next.config.ts lists exactly the widths and quality CardImage uses", async () => {
+  test("next.config.ts lists exactly the widths and quality CardImage and the homepage Minokoala use", async () => {
     const { default: config } = await import("../../next.config");
     const listed = [...(config.images?.imageSizes ?? []), ...(config.images?.deviceSizes ?? [])].sort((a, b) => a - b);
-    expect(listed).toEqual(Object.values(CARD_IMAGE_WIDTHS).sort((a, b) => a - b));
+    expect(listed).toEqual([...Object.values(CARD_IMAGE_WIDTHS), MINOKOALA.derivative].sort((a, b) => a - b));
     expect(config.images?.qualities).toEqual([CARD_IMAGE_QUALITY]);
     expect(config.images?.localPatterns).toEqual([{ pathname: "/api/card-image/**", search: "" }]);
-    expect(config.images?.remotePatterns).toEqual([]);
+    // One remote file, by exact path and query: the homepage Minokoala.
+    expect(config.images?.remotePatterns).toEqual([
+      { protocol: "https", hostname: MINOKOALA.host, pathname: MINOKOALA.pathname, search: MINOKOALA.search },
+    ]);
+    expect(MINOKOALA.src).toBe(`https://${MINOKOALA.host}${MINOKOALA.pathname}${MINOKOALA.search}`);
   });
 });
 

@@ -1,18 +1,21 @@
 import type { NextConfig } from "next";
 import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS } from "./app/cards/image";
+import { MINOKOALA } from "./app/minokoala";
 
-const widths = Object.values(CARD_IMAGE_WIDTHS).sort((a, b) => a - b);
+const widths = [...Object.values(CARD_IMAGE_WIDTHS), MINOKOALA.derivative].sort((a, b) => a - b);
 
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  // Only our card-image proxy is optimized, only at the widths CardImage asks
-  // for (app/cards/image.ts). A source url's bytes never change, so the cache
-  // can hold for a year.
+  // Only our card-image proxy and the homepage Minokoala (app/minokoala.ts) are
+  // optimized, only at the widths CardImage and the homepage ask for. A source
+  // url's bytes never change, so the cache can hold for a year.
   images: {
     localPatterns: [{ pathname: "/api/card-image/**", search: "" }],
-    remotePatterns: [],
+    remotePatterns: [
+      { protocol: "https", hostname: MINOKOALA.host, pathname: MINOKOALA.pathname, search: MINOKOALA.search },
+    ],
     deviceSizes: [widths[widths.length - 1]],
     imageSizes: widths.slice(0, -1),
     qualities: [CARD_IMAGE_QUALITY],
