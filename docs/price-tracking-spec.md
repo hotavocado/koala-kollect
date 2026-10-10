@@ -20,6 +20,10 @@ from.
 5. **Thumbnails that stand for several printings** (the set gallery, for one):
    use the English printing's price. If there is none, use Japanese, then
    Chinese as the last fallback (88692).
+6. **A thumbnail shows one number: the raw market price.** No graded prices
+   on thumbnails; the grades are on the card page. Mike: "multi printuhtunf
+   thumbnails show 1 price, just en, jp, cn in order of priority" (88708) and
+   "oh yea raw price" (88713).
 
 ## Open questions
 
@@ -34,5 +38,3 @@ builds.
 - **Where prices are stored**: the data repo (koala-kollect-data, synced like
   every other record) or the app (written by its own cron). The data repo is
   built around published facts that change rarely. Prices change daily.
-- **Which grades go on the thumbnail.** Requirement 4 names one market price.
-  Whether that is raw only is not stated.
