@@ -221,11 +221,15 @@ export const sweepRetiredSites = internalAction({
         (r) => (out.printings_remaining += r.printings),
       );
     }
-    const deleted =
-      out.products + out.printing_products + out.distributions + out.printing_distributions + out.card_observations + out.printing_locators;
-    // Products feed the set index, so it is re-derived once they are gone. A
-    // run that deleted nothing changes nothing to re-derive.
-    if (!dryRun && deleted > 0) out.rebuild = await rebuildCardSets(ctx);
+    // Products feed the set index, so every real run re-derives it, even one
+    // that deleted nothing: a run that died between its deletes and this
+    // rebuild leaves its retry nothing to delete. Checked again first, as
+    // retireChain does; the rebuild is not one transaction, so this is a
+    // check, not a fence.
+    if (!dryRun) {
+      await ctx.runQuery(internal.siteSweep.checkNoSync, {});
+      out.rebuild = await rebuildCardSets(ctx);
+    }
     return out;
   },
 });

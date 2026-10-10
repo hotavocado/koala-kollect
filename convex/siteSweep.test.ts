@@ -150,13 +150,30 @@ describe("sweepRetiredSites", () => {
     for (const s of sets) for (const k of s.product_keys) expect(k).toMatch(/^(en|jp|cn):/);
   });
 
-  test("a second real run deletes nothing and does not rebuild", async () => {
+  test("a second real run deletes nothing and still rebuilds the set index", async () => {
     const t = newTest();
     await seed(t);
     await sweep(t, false);
     const before = await snapshot(t);
-    expect(await sweep(t, false)).toEqual({ dryRun: false, ...ZERO });
+    const { rebuild, ...counts } = await sweep(t, false);
+    expect(counts).toEqual({ dryRun: false, ...ZERO });
+    expect(rebuild).toBeDefined();
     expect(await snapshot(t)).toEqual(before);
+  });
+
+  // A run that died after its deletes but before its rebuild leaves stale
+  // product keys in card_sets; the retry has nothing to delete and must
+  // still re-derive them.
+  test("a retry with nothing left to delete repairs a stale set index", async () => {
+    const t = newTest();
+    await seed(t);
+    await sweep(t, false);
+    const stale = await t.run(async (ctx) => (await ctx.db.query("card_sets").collect())[0]);
+    if (stale === undefined) throw new Error("seed built no card_sets");
+    await t.run(async (ctx) => ctx.db.patch(stale._id, { product_keys: [...stale.product_keys, "tc:999999"] }));
+    await sweep(t, false);
+    const sets = await t.run(async (ctx) => ctx.db.query("card_sets").collect());
+    for (const s of sets) for (const k of s.product_keys) expect(k).toMatch(/^(en|jp|cn):/);
   });
 
   test("printings on a retired site are counted, never deleted", async () => {
