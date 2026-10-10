@@ -94,7 +94,7 @@ test("rebuild counts distinct cards per set and lists them by number", async () 
       slug: "op-01",
       code: "OP-01",
       kind: "booster",
-      title: "ROMANCE DAWN",
+      title: "Romance Dawn",
       cardCount: 2,
       releaseDate: "2022-12-02",
       releaseSite: "en",

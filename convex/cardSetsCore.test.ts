@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { groupProducts, productTitle, type ProductInput } from "./cardSetsCore";
+import { englishTitle, groupProducts, productTitle, type ProductInput } from "./cardSetsCore";
 
 function product(site: ProductInput["site"], code: string | undefined, name: string, kind: ProductInput["kind"]) {
   return { key: `${site}:${code ?? kind}`, site, ...(code ? { code } : {}), name, kind };
@@ -18,6 +18,32 @@ describe("productTitle", () => {
     ["特殊補充包 EGGHEAD CRISIS【EB-04】", "特殊補充包 EGGHEAD CRISIS"],
   ])("%s", (name, title) => {
     expect(productTitle(name)).toBe(title);
+  });
+});
+
+describe("englishTitle", () => {
+  test.each([
+    // All capitals: recased, small words lower after the first.
+    ["THE AZURE SEA’S SEVEN", "The Azure Sea’s Seven"],
+    ["A FIST OF DIVINE SPEED", "A Fist of Divine Speed"],
+    ["CARRYING ON HIS WILL", "Carrying on His Will"],
+    ["500 YEARS IN THE FUTURE", "500 Years in the Future"],
+    // Brand phrases keep their capitals, and only the brand does.
+    ["ADVENTURE ON KAMI’S ISLAND", "Adventure on KAMI’s Island"],
+    ["ONE PIECE HEROINES EDITION", "ONE PIECE Heroines Edition"],
+    ["ONE PIECE CARD THE BEST", "ONE PIECE CARD THE BEST"],
+    // A leading deck colour, on its own.
+    ["RED Shanks", "Red Shanks"],
+    ["PURPLE/BLACK Monkey.D.Luffy", "Purple/Black Monkey.D.Luffy"],
+    // Left as written: mixed case, and words with a digit.
+    ["ONE PIECE FILM edition", "ONE PIECE FILM edition"],
+    ["ONE PIECE CARD THE BEST vol.2", "ONE PIECE CARD THE BEST vol.2"],
+    ["Anime 25th Collection", "Anime 25th Collection"],
+    ["GEAR5", "GEAR5"],
+    ["3D2Y", "3D2Y"],
+    ["Royal Blood", "Royal Blood"],
+  ])("%s", (title, expected) => {
+    expect(englishTitle(title)).toBe(expected);
   });
 });
 
@@ -64,10 +90,24 @@ describe("groupProducts", () => {
     const op13 = groups.find((g) => g.slug === "op-13");
     expect(op13).toMatchObject({ code: "OP-13", kind: "booster", title: "Carrying on His Will" });
     expect(op13?.product_keys).toEqual(["asia-en:OP-13", "en:OP-13", "jp:OP-13"]);
-    // en only: its capitals are what there is.
-    expect(groups.find((g) => g.slug === "op15-eb04")?.title).toBe("ADVENTURE ON KAMI’S ISLAND");
+    // en only: its capitals recased, the brand kept.
+    expect(groups.find((g) => g.slug === "op15-eb04")?.title).toBe("Adventure on KAMI’s Island");
     // jp only: the code is stripped, the rest kept.
     expect(groups.find((g) => g.slug === "st-99")?.title).toBe("スタートデッキ テスト");
+  });
+
+  test("with no English site, a product's own name_en is the title, as written", () => {
+    const [eb04] = groupProducts([
+      { ...product("jp", "EB-04", "エクストラブースター EGGHEAD CRISIS【EB-04】", "extra"), name_en: "EGGHEAD CRISIS" },
+      product("cn", "EB-04", "特别补充包 艾格赫德危机【EB-04】", "extra"),
+    ]);
+    expect(eb04.title).toBe("EGGHEAD CRISIS");
+    // An English site's name still goes first.
+    const [op13] = groupProducts([
+      { ...product("jp", "OP-13", "ブースターパック 受け継がれる意志【OP-13】", "booster"), name_en: "Carried On" },
+      product("en", "OP-13", "BOOSTER PACK -CARRYING ON HIS WILL- [OP-13]", "booster"),
+    ]);
+    expect(op13.title).toBe("Carrying on His Will");
   });
 
   test("code-less products group across sites by kind", () => {
