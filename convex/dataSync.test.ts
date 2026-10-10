@@ -163,6 +163,12 @@ describe("dataSync.run", () => {
     const total = Object.values(expected).reduce((a, b) => a + b, 0);
     expect(row).toMatchObject({ data_commit: COMMIT_A, status: "ok", upserted: total, retired: 0 });
     expect(row.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
+    // After the ok close, the summary chain has given every card its summary
+    // and stamped the row.
+    const cards = await t.run(async (ctx) => await ctx.db.query("cards").collect());
+    expect(cards.every((c) => c.summary !== undefined)).toBe(true);
+    expect(row).toMatchObject({ summarized_cards: expected.cards });
+    expect(row.summarized_at).toBeDefined();
   });
 
   // A printing whose image the proxy refuses shows the text face, silently. The

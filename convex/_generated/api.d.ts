@@ -11,6 +11,7 @@
 import type * as cardSearch from "../cardSearch.js";
 import type * as cardSearchCore from "../cardSearchCore.js";
 import type * as cardSets from "../cardSets.js";
+import type * as cardSummary from "../cardSummary.js";
 import type * as cardSetsCore from "../cardSetsCore.js";
 import type * as cards from "../cards.js";
 import type * as crons from "../crons.js";
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   cardSearch: typeof cardSearch;
   cardSearchCore: typeof cardSearchCore;
   cardSets: typeof cardSets;
+  cardSummary: typeof cardSummary;
   cardSetsCore: typeof cardSetsCore;
   cards: typeof cards;
   crons: typeof crons;

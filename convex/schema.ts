@@ -120,6 +120,17 @@ export default defineSchema({
     // schema enforces the DON-only rule; this mirror only admits the value.
     facts_site: v.union(site, v.literal("tcgcsv")),
     first_seen_at: v.string(),
+    // App-only, derived: what a browse row shows, so a set page, the browse
+    // grid and search read the card alone. The data repo never sends it, the
+    // sync carries it across a replace (syncCore DERIVED_FIELDS), and
+    // cardSummary.chain recomputes it after every ok sync. Absent until then.
+    summary: v.optional(
+      v.object({
+        name: v.union(v.string(), v.null()),
+        printings: v.number(),
+        image_url: v.union(v.string(), v.null()),
+      }),
+    ),
   })
     .index("by_key", ["key"])
     .index("by_number", ["number"])
@@ -340,6 +351,10 @@ export default defineSchema({
     unproxied_images: v.optional(v.number()),
     unproxied_image_keys: v.optional(v.array(v.string())),
     unproxied_image_sites: v.optional(v.array(v.object({ site: printingSite, count: v.number() }))),
+    // Set by cardSummary.chain once it has recomputed every card after this
+    // sync: when it finished and how many cards' summaries changed.
+    summarized_at: v.optional(v.string()),
+    summarized_cards: v.optional(v.number()),
   }).index("by_started_at", ["started_at"]),
 
   // App-only, derived: the set index. One row per product code across sites,

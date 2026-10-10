@@ -34,7 +34,7 @@ function pickObservation(observations: Doc<"card_observations">[]): Doc<"card_ob
   return null;
 }
 
-function pickName(observations: Doc<"card_observations">[]): string | null {
+export function pickName(observations: Doc<"card_observations">[]): string | null {
   return pickObservation(observations)?.name ?? null;
 }
 
@@ -58,7 +58,7 @@ function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
 
 // The card's image: the best-ranked printing that has one. A tcgcsv printing
 // has none until TCGplayer lists an image, and the card then shows its text face.
-function cardImage(printings: Doc<"printings">[]): string | null {
+export function cardImage(printings: Doc<"printings">[]): string | null {
   return rankPrintings(printings).find((p) => p.image_url !== undefined)?.image_url ?? null;
 }
 
@@ -98,6 +98,26 @@ export async function browseRow(
   card: Doc<"cards">,
   imageFrom?: Doc<"printings">[],
 ): Promise<BrowseCard> {
+  const row = {
+    key: card.key,
+    number: card.number ?? null,
+    donDesign: card.don_design ?? null,
+    category: card.category,
+    colors: card.colors,
+  };
+  // The stored summary saves reading every observation and printing of the
+  // card: on the promo set page those were about two thirds of the reads.
+  // imageFrom is printings the caller already holds, so it costs nothing.
+  const summary = card.summary;
+  if (summary) {
+    return {
+      ...row,
+      name: summary.name,
+      imageUrl: imageFrom?.length ? cardImage(imageFrom) : summary.image_url,
+      printings: summary.printings,
+    };
+  }
+  // No summary yet (a card the chain has not reached): read them live.
   const [observations, printings] = await Promise.all([
     ctx.db
       .query("card_observations")
@@ -109,11 +129,7 @@ export async function browseRow(
       .collect(),
   ]);
   return {
-    key: card.key,
-    number: card.number ?? null,
-    donDesign: card.don_design ?? null,
-    category: card.category,
-    colors: card.colors,
+    ...row,
     name: pickName(observations),
     imageUrl: cardImage(imageFrom?.length ? imageFrom : printings),
     printings: printings.length,
