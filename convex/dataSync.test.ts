@@ -726,3 +726,46 @@ describe("printings with no image_url", () => {
     await expect(t.run(async (ctx) => void (await ctx.db.insert("printings", prt as never)))).rejects.toThrow();
   });
 });
+
+// A tcgcsv printing may carry provenance_url: where Bandai itself publishes the
+// print's art. Only tcgcsv carries it; an official site's printing IS Bandai's
+// page, so the schema refuses the field there. The fixture's tcgcsv printings
+// carry none, so the sync above already covers a printing without it.
+describe("printing provenance_url", () => {
+  const PROVENANCE = "https://en.onepiece-cardgame.com/topics/example.php";
+
+  function withProvenance(path: string) {
+    const files = fixtureFiles();
+    const prt = JSON.parse(files[path].lines[0]) as Rec;
+    prt.provenance_url = PROVENANCE;
+    files[path].lines[0] = JSON.stringify(prt);
+    return { files, prt };
+  }
+
+  test("a tcgcsv printing with one syncs and is stored with it", async () => {
+    const t = convexTest(schema, modules);
+    const { files, prt } = withProvenance("data/printings/tcgcsv.jsonl");
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+    expect(r.status).toBe("ok");
+    const stored = await t.run(
+      async (ctx) => await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", prt.key)).unique(),
+    );
+    expect(stored).toMatchObject({ key: prt.key, site: "tcgcsv", provenance_url: PROVENANCE });
+  });
+
+  const OFFICIAL = Object.keys(fixtureFiles()).filter(
+    (p) => fixtureFiles()[p].type === "printing" && !p.endsWith("/tcgcsv.jsonl"),
+  );
+
+  test.each(OFFICIAL)("%s: the schema rejects a printing carrying one", async (path) => {
+    const t = convexTest(schema, modules);
+    const { prt } = withProvenance(path);
+    await expect(t.run(async (ctx) => void (await ctx.db.insert("printings", prt as never)))).rejects.toThrow();
+    // Control: the same row without the field inserts, so the throw above is the field's.
+    delete prt.provenance_url;
+    await t.run(async (ctx) => void (await ctx.db.insert("printings", prt as never)));
+  });
+});
