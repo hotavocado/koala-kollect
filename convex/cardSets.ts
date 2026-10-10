@@ -118,8 +118,8 @@ export const pruneSets = internalMutation({
   },
 });
 
-// Shared by the action below and dataSync.run, which calls it inline rather
-// than running one action from another.
+// Shared by the action below and dataSync.retireChain, which calls it inline
+// rather than running one action from another.
 export async function rebuildCardSets(ctx: ActionCtx): Promise<{ sets: number; pruned: number }> {
   const groups: SetGroup[] = groupProducts(await ctx.runQuery(internal.cardSets.listProducts, {}));
   for (const group of groups) {

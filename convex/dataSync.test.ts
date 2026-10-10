@@ -98,7 +98,10 @@ function serve(repos: Record<string, Map<string, Body>>, main: string | number =
   return fetchMock;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 const newTest = () => convexTest(schema, modules);
 
@@ -116,12 +119,36 @@ async function syncs(t: ReturnType<typeof convexTest>) {
 
 const EMPTY = Object.fromEntries(SYNCED_TABLES.map((t) => [t, 0]));
 
+// run stops after pass 2's upserts and schedules the retire chain, which
+// retires, rebuilds card_sets and closes the row. This runs both to the end and
+// returns run's result with the status the row ended on. Fake timers hold the
+// chain until finishAllScheduledFunctions, so it never runs into the next call.
+async function sync(t: ReturnType<typeof convexTest>, args: { commit?: string; force?: boolean }) {
+  vi.useFakeTimers();
+  try {
+    const r = await t.action(internal.dataSync.run, args);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    if (r.status !== "running") return r;
+    return { ...r, status: (await syncs(t)).at(-1)!.status };
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+// The retire chain's invocations, in order, by the offset each started at.
+async function chainOffsets(t: ReturnType<typeof convexTest>, syncId: string) {
+  const jobs = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+  return jobs
+    .filter((j) => j.name.includes("retireChain") && (j.args[0] as { syncId: string }).syncId === syncId)
+    .map((j) => (j.args[0] as { offset: number }).offset);
+}
+
 describe("dataSync.run", () => {
   test("syncs every record type from the contract's valid examples", async () => {
     const t = convexTest(schema, modules);
     serve({ [COMMIT_A]: await repoAt() });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("ok");
     const expected = Object.fromEntries(SYNCED_TABLES.map((t) => [t, 0]));
@@ -160,7 +187,7 @@ describe("dataSync.run", () => {
       const t = convexTest(schema, modules);
       serve({ [COMMIT_A]: await repoAt() });
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const r = await sync(t, { commit: COMMIT_A });
 
       expect(r.detail).toMatch(/; 0 printing images not proxied$/);
       expect((await syncs(t))[0].unproxied_images).toBe(0);
@@ -176,7 +203,7 @@ describe("dataSync.run", () => {
       files[path].lines[i] = JSON.stringify(prt);
       serve({ [COMMIT_A]: await repoAt(files) });
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const r = await sync(t, { commit: COMMIT_A });
 
       expect(r.detail).toMatch(new RegExp(`; 1 printing image not proxied \\(tcgcsv 1\\): ${prt.key}$`));
       expect((await syncs(t))[0]).toMatchObject({
@@ -195,7 +222,7 @@ describe("dataSync.run", () => {
       files[enPath].lines[0] = JSON.stringify(prt);
       serve({ [COMMIT_A]: await repoAt(files) });
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const r = await sync(t, { commit: COMMIT_A });
 
       expect(r.status).toBe("ok");
       expect(r.detail).toMatch(new RegExp(`; 1 printing image not proxied \\(en 1\\): ${prt.key}$`));
@@ -214,7 +241,7 @@ describe("dataSync.run", () => {
       }
       serve({ [COMMIT_A]: await repoAt(files) });
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const r = await sync(t, { commit: COMMIT_A });
 
       expect(r.detail).toMatch(/; 0 printing images not proxied$/);
       const [row] = await syncs(t);
@@ -234,7 +261,7 @@ describe("dataSync.run", () => {
       }
       serve({ [COMMIT_A]: await repoAt(files) });
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const r = await sync(t, { commit: COMMIT_A });
 
       expect(r.status).toBe("ok");
       const [row] = await syncs(t);
@@ -284,19 +311,154 @@ describe("dataSync.run", () => {
     // What the data repo commits after retiring RETIRED: its printing and its
     // product, claim and link rows are gone, its locator now points at the
     // survivor, and the retired file lists it.
-    function afterRetire(files: ReturnType<typeof fixtureFiles>) {
+    function afterRetire(files: ReturnType<typeof fixtureFiles>, keys = [RETIRED]) {
+      const gone = new Set<unknown>(keys);
       for (const f of Object.values(files)) {
         f.lines = f.lines.flatMap((l) => {
           const r = JSON.parse(l) as Rec;
-          if (f.type === "printing_locator" && r.printing_key === RETIRED) return [JSON.stringify({ ...r, printing_key: SURVIVOR })];
-          if (r.key === RETIRED && f.type === "printing") return [];
-          if (r.printing_key === RETIRED || r.printing_a === RETIRED || r.printing_b === RETIRED) return [];
+          if (f.type === "printing_locator" && gone.has(r.printing_key)) return [JSON.stringify({ ...r, printing_key: SURVIVOR })];
+          if (gone.has(r.key) && f.type === "printing") return [];
+          if (gone.has(r.printing_key) || gone.has(r.printing_a) || gone.has(r.printing_b)) return [];
           return [l];
         });
       }
-      files[RETIRED_PATH] = { type: "retired_printing" as RecordType, lines: [retiredRow(RETIRED)] };
+      files[RETIRED_PATH] = { type: "retired_printing" as RecordType, lines: keys.map((k) => retiredRow(k)) };
       return files;
     }
+
+    // The fixture plus `n` copies of RETIRED, each listed (not removed) under
+    // the fixture's first product and all on one card no other printing
+    // carries, so retiring them drops that product's set card_count.
+    const EXTRA_CARD = "card_eeeeeeeeeeee";
+    const PRODUCT = (JSON.parse(fixtureFiles()["data/products/jp.jsonl"].lines[0]) as Rec).key;
+    function withExtra(n: number) {
+      const files = fixtureFiles();
+      const keys = Array.from({ length: n }, (_, i) => `prt_eeee${String(i).padStart(8, "0")}`);
+      for (const f of Object.values(files)) {
+        if (f.type !== "printing" && f.type !== "printing_product") continue;
+        const line = f.lines.map((l) => JSON.parse(l) as Rec).find((r) => r.key === RETIRED || r.printing_key === RETIRED);
+        if (!line) continue;
+        for (const key of keys) {
+          const listing = { ...line };
+          delete listing.removed_at;
+          const copy = f.type === "printing" ? { ...line, key, card_key: EXTRA_CARD } : { ...listing, printing_key: key, product_key: PRODUCT, key: `${key}@${PRODUCT}` };
+          f.lines.push(JSON.stringify(copy));
+        }
+      }
+      return { files, keys };
+    }
+
+    async function setOf(t: ReturnType<typeof newTest>, productKey: string) {
+      const sets = await t.run(async (ctx) => await ctx.db.query("card_sets").collect());
+      return sets.find((s) => s.product_keys.includes(productKey));
+    }
+
+    // 9,829 keys at 20 a batch do not fit in run's action beside pass 2, so the
+    // retires run in a chain of actions that each stop after a time budget and
+    // schedule the next. A budget of 0 stops each after one batch.
+    test("retires across several chain invocations, then rebuilds card_sets and closes the row ok", async () => {
+      vi.stubEnv("KK_RETIRE_BUDGET_MS", "0");
+      const t = newTest();
+      const { files, keys: extra } = withExtra(44);
+      const keys = [RETIRED, ...extra]; // 45 keys: batches at 0, 20 and 40
+      serve({ [COMMIT_A]: await repoAt(files), [COMMIT_B]: await repoAt(afterRetire(withExtra(44).files, keys)) });
+      await sync(t, { commit: COMMIT_A });
+      const setBefore = await setOf(t, PRODUCT);
+      for (const key of extra) expect(await rowsFor(t, key)).toMatchObject({ printings: 1, printing_products: 1 });
+
+      const r = await sync(t, { commit: COMMIT_B });
+
+      const row = (await syncs(t)).at(-1)!;
+      expect(r.status).toBe("ok");
+      expect(await chainOffsets(t, row._id)).toEqual([0, 20, 40]);
+      expect(row).toMatchObject({ status: "ok", retired: 45, upserted: 1, unproxied_images: 0 });
+      expect(row.finished_at).toBeDefined();
+      for (const key of keys) {
+        expect(await rowsFor(t, key)).toEqual({ printings: 0, printing_links: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0 });
+      }
+      expect((await setOf(t, PRODUCT))!.card_count).toBe(setBefore!.card_count - 1);
+    });
+
+    test("run returns 'running' and leaves the row open until the chain closes it", async () => {
+      const t = newTest();
+      serve({ [COMMIT_A]: await repoAt() });
+      vi.useFakeTimers();
+      try {
+        const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+        expect(r).toMatchObject({ status: "running", data_commit: COMMIT_A });
+        expect(r.detail).toMatch(/^\d+ rows inserted or updated; retiring 1 listed printing and rebuilding card_sets in the background/);
+        const [open] = await syncs(t);
+        expect(open.status).toBe("running");
+        expect(open).not.toHaveProperty("finished_at");
+        expect(open).not.toHaveProperty("retired");
+        expect(open.upserted).toBeGreaterThan(0);
+        expect(open.unproxied_images).toBe(0);
+        expect(await t.run(async (ctx) => await ctx.db.query("card_sets").collect())).toEqual([]);
+
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+        const [closed] = await syncs(t);
+        expect(closed).toMatchObject({ status: "ok", retired: 0, upserted: open.upserted, unproxied_images: 0 });
+        expect(closed.finished_at).toBeDefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test("with nothing to retire, the chain still rebuilds card_sets and closes the row ok", async () => {
+      const t = newTest();
+      const files = fixtureFiles();
+      delete files[RETIRED_PATH];
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      const r = await sync(t, { commit: COMMIT_A });
+
+      const [row] = await syncs(t);
+      expect(r.status).toBe("ok");
+      expect(await chainOffsets(t, row._id)).toEqual([0]);
+      expect(row).toMatchObject({ status: "ok", retired: 0 });
+      expect((await t.run(async (ctx) => await ctx.db.query("card_sets").collect())).length).toBeGreaterThan(0);
+    });
+
+    // The chain re-reads the commit it was given. Raw URLs at a SHA are
+    // immutable, so different bytes on the re-read are a fault, not new data.
+    test.each<[string, (repo: Map<string, Body>) => void, RegExp]>([
+      [
+        "the retired file",
+        (repo) => {
+          const good = repo.get(RETIRED_PATH) as string;
+          let calls = 0;
+          repo.set(RETIRED_PATH, () => new Response(calls++ === 0 ? good : good.replace("double-save", "double save")));
+        },
+        /^sha256 mismatch on data\/retired_printings\.jsonl: manifest [0-9a-f]{64}, file [0-9a-f]{64}$/,
+      ],
+      [
+        "manifest.json",
+        (repo) => {
+          const good = repo.get("manifest.json") as string;
+          let calls = 0;
+          repo.set("manifest.json", () => new Response(calls++ === 0 ? good : good.replace("2026-10-08T00:00:00Z", "2026-10-09T00:00:00Z")));
+        },
+        new RegExp(`^manifest\\.json at ${COMMIT_B} no longer matches the sync's manifest_sha256$`),
+      ],
+    ])("%s changing on the chain's re-read fails the row, retires nothing and stops the chain", async (_name, change, message) => {
+      const t = newTest();
+      const repoB = await repoAt(afterRetire(fixtureFiles()));
+      change(repoB);
+      serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: repoB });
+      await sync(t, { commit: COMMIT_A });
+
+      const r = await sync(t, { commit: COMMIT_B });
+
+      const row = (await syncs(t)).at(-1)!;
+      expect(r.status).toBe("failed");
+      expect(row).toMatchObject({ status: "failed", retired: 0, upserted: 1, unproxied_images: 0 });
+      expect(row.refusal).toMatch(message);
+      expect(row.finished_at).toBeDefined();
+      expect(await chainOffsets(t, row._id)).toEqual([0]);
+      expect((await rowsFor(t, RETIRED)).printings).toBe(1);
+    });
 
     async function rowsFor(t: ReturnType<typeof newTest>, key: string) {
       return await t.run(async (ctx) => {
@@ -316,14 +478,14 @@ describe("dataSync.run", () => {
     test("deletes the printing and every row on its key, and nothing on any other key", async () => {
       const t = newTest();
       serve({ [COMMIT_A]: await repoAt(withPrefixed()), [COMMIT_B]: await repoAt(afterRetire(withPrefixed())) });
-      await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      await sync(t, { commit: COMMIT_A });
       // Every dependent table holds a row for the retired key before, so an
       // empty result after is the delete and not an empty fixture.
       expect(await rowsFor(t, RETIRED)).toEqual({ printings: 1, printing_links: 1, printing_products: 1, printing_distributions: 1, printing_locators: 1 });
       const prefixedBefore = await rowsFor(t, PREFIXED);
       const before = await counts(t);
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_B });
+      const r = await sync(t, { commit: COMMIT_B });
 
       expect(r.status).toBe("ok");
       expect(await rowsFor(t, RETIRED)).toEqual({ printings: 0, printing_links: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0 });
@@ -336,7 +498,6 @@ describe("dataSync.run", () => {
         printing_distributions: before.printing_distributions - 1,
         printing_links: before.printing_links - 1,
       });
-      expect(r.detail).toMatch(/, 1 printing retired;/);
       expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", retired: 1 });
     });
 
@@ -346,12 +507,12 @@ describe("dataSync.run", () => {
     test("keeps a locator the same commit moved onto the survivor", async () => {
       const t = newTest();
       serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(afterRetire(fixtureFiles())) });
-      await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      await sync(t, { commit: COMMIT_A });
       const [locator] = await t.run(async (ctx) =>
         await ctx.db.query("printing_locators").withIndex("by_printing", (q) => q.eq("printing_key", RETIRED)).collect(),
       );
 
-      await t.action(internal.dataSync.run, { commit: COMMIT_B });
+      await sync(t, { commit: COMMIT_B });
 
       const moved = await t.run(async (ctx) =>
         await ctx.db.query("printing_locators").withIndex("by_key", (q) => q.eq("key", locator.key)).unique(),
@@ -362,14 +523,13 @@ describe("dataSync.run", () => {
     test("re-reading the same retired file deletes nothing more", async () => {
       const t = newTest();
       serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(afterRetire(fixtureFiles())) });
-      await t.action(internal.dataSync.run, { commit: COMMIT_A });
-      await t.action(internal.dataSync.run, { commit: COMMIT_B });
+      await sync(t, { commit: COMMIT_A });
+      await sync(t, { commit: COMMIT_B });
       const after = await counts(t);
 
-      const again = await t.action(internal.dataSync.run, { commit: COMMIT_B, force: true });
+      const again = await sync(t, { commit: COMMIT_B, force: true });
 
       expect(again.status).toBe("ok");
-      expect(again.detail).toMatch(/, 0 printings retired;/);
       expect(await counts(t)).toEqual(after);
       expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", upserted: 0, retired: 0 });
     });
@@ -396,7 +556,7 @@ describe("dataSync.run", () => {
       change(files);
       serve({ [COMMIT_A]: await repoAt(files) });
 
-      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+      const r = await sync(t, { commit: COMMIT_A });
 
       expect(r.status).toBe("refused");
       expect(r.detail).toMatch(message);
@@ -407,10 +567,10 @@ describe("dataSync.run", () => {
   test("skips a commit already synced, and a forced re-run writes nothing", async () => {
     const t = convexTest(schema, modules);
     serve({ [COMMIT_A]: await repoAt() });
-    await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    await sync(t, { commit: COMMIT_A });
 
-    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("skipped");
-    const forced = await t.action(internal.dataSync.run, { commit: COMMIT_A, force: true });
+    expect((await sync(t, { commit: COMMIT_A })).status).toBe("skipped");
+    const forced = await sync(t, { commit: COMMIT_A, force: true });
     expect(forced.status).toBe("ok");
     expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", upserted: 0 });
   });
@@ -426,8 +586,8 @@ describe("dataSync.run", () => {
     changed[obsPath].lines[0] = JSON.stringify(obs);
     serve({ [COMMIT_A]: await repoAt(files), [COMMIT_B]: await repoAt(changed) });
 
-    await t.action(internal.dataSync.run, { commit: COMMIT_A });
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_B });
+    await sync(t, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_B });
 
     expect(r.status).toBe("ok");
     expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", upserted: 1 });
@@ -445,8 +605,8 @@ describe("dataSync.run", () => {
   test("cn's OP06-050 pair stays two printings of one card through a sync and a re-sync", async () => {
     const t = convexTest(schema, modules);
     serve({ [COMMIT_A]: await repoAt() });
-    await t.action(internal.dataSync.run, { commit: COMMIT_A });
-    await t.action(internal.dataSync.run, { commit: COMMIT_A, force: true });
+    await sync(t, { commit: COMMIT_A });
+    await sync(t, { commit: COMMIT_A, force: true });
 
     const pair = await t.run(async (ctx) =>
       Promise.all(
@@ -479,7 +639,7 @@ describe("dataSync.run", () => {
     files[productPath].lines[0] = JSON.stringify(product);
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("ok");
+    expect((await sync(t, { commit: COMMIT_A })).status).toBe("ok");
     const stored = await t.run(async (ctx) =>
       ctx.db.query("products").withIndex("by_key", (q) => q.eq("key", product.key)).unique(),
     );
@@ -493,8 +653,8 @@ describe("dataSync.run", () => {
     fewer[linkPath].lines = [];
     serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(fewer) });
 
-    await t.action(internal.dataSync.run, { commit: COMMIT_A });
-    expect((await t.action(internal.dataSync.run, { commit: COMMIT_B })).status).toBe("ok");
+    await sync(t, { commit: COMMIT_A });
+    expect((await sync(t, { commit: COMMIT_B })).status).toBe("ok");
     expect((await counts(t)).printing_links).toBe(1);
   });
 
@@ -510,7 +670,7 @@ describe("dataSync.run", () => {
     const t = convexTest(schema, modules);
     serve({ [COMMIT_A]: await repoAt(undefined, tamper) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("refused");
     expect(r.detail).toMatch(reason);
@@ -530,7 +690,7 @@ describe("dataSync.run", () => {
     repo.set("manifest.json", JSON.stringify(manifest));
     serve({ [COMMIT_A]: repo });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r).toMatchObject({ status: "refused", detail: "data/cards.jsonl is not valid UTF-8" });
     expect(await syncs(t)).toMatchObject([{ status: "refused" }]);
@@ -549,7 +709,7 @@ describe("dataSync.run", () => {
       );
     serve({ [COMMIT_A]: await repoAt(undefined, (_m, b) => b.set("data/cards.jsonl", broken)) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r).toMatchObject({ status: "refused", detail: "data/cards.jsonl: connection reset" });
     expect(await syncs(t)).toMatchObject([{ status: "refused" }]);
@@ -558,7 +718,7 @@ describe("dataSync.run", () => {
   test("refuses when the commit has no manifest", async () => {
     const t = convexTest(schema, modules);
     serve({});
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
     expect(r).toMatchObject({ status: "refused", detail: "manifest.json: HTTP 404 (not found)" });
     expect(await syncs(t)).toMatchObject([{ status: "refused", manifest_sha256: "" }]);
   });
@@ -572,7 +732,7 @@ describe("dataSync.run", () => {
     files[prtPath].lines[0] = JSON.stringify(bad);
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("failed");
     expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
@@ -595,7 +755,7 @@ describe("dataSync.run", () => {
       files[path].lines[0] = JSON.stringify(stale);
       serve({ [COMMIT_A]: await repoAt(files) });
 
-      expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+      expect((await sync(t, { commit: COMMIT_A })).status).toBe("failed");
       expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
     },
   );
@@ -613,7 +773,7 @@ describe("dataSync.run", () => {
     files[path].lines[0] = JSON.stringify(stale);
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+    expect((await sync(t, { commit: COMMIT_A })).status).toBe("failed");
     expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
   });
 
@@ -628,7 +788,7 @@ describe("dataSync.run", () => {
     files[distPath].lines[0] = JSON.stringify(old);
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+    expect((await sync(t, { commit: COMMIT_A })).status).toBe("failed");
     expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
   });
 
@@ -641,7 +801,7 @@ describe("dataSync.run", () => {
     files[distPath].lines[0] = JSON.stringify(noSite);
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    expect((await t.action(internal.dataSync.run, { commit: COMMIT_A })).status).toBe("failed");
+    expect((await sync(t, { commit: COMMIT_A })).status).toBe("failed");
     expect(await syncs(t)).toMatchObject([{ status: "failed" }]);
   });
 
@@ -649,7 +809,7 @@ describe("dataSync.run", () => {
     const t = convexTest(schema, modules);
     const fetchMock = serve({ [COMMIT_B]: await repoAt() }, COMMIT_B);
 
-    const r = await t.action(internal.dataSync.run, {});
+    const r = await sync(t, {});
 
     expect(r).toMatchObject({ status: "ok", data_commit: COMMIT_B });
     const [, init] = fetchMock.mock.calls[0];
@@ -660,7 +820,7 @@ describe("dataSync.run", () => {
     const t = convexTest(schema, modules);
     serve({}, 403);
 
-    const r = await t.action(internal.dataSync.run, {});
+    const r = await sync(t, {});
 
     expect(r).toMatchObject({ status: "refused", detail: "data repo main: HTTP 403 (forbidden)" });
     expect(await syncs(t)).toMatchObject([{ status: "refused", data_commit: "", refusal: "data repo main: HTTP 403 (forbidden)" }]);
@@ -678,10 +838,42 @@ describe("dataSync.run", () => {
       });
     });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r).toMatchObject({ status: "skipped", detail: "another sync is running" });
     expect(await counts(t)).toEqual(EMPTY);
+  });
+});
+
+// An action killed at Convex's time limit never reaches its catch, so its row
+// would sit "running" forever. begin closes such a row once it is past the TTL.
+describe("dataSync.begin", () => {
+  const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const open = (started_at: string) => ({ data_commit: COMMIT_A, manifest_sha256: "", started_at });
+
+  async function withRunning(t: ReturnType<typeof convexTest>, ageMs: number) {
+    return await t.run(async (ctx) => await ctx.db.insert("data_syncs", { ...open(iso(Date.now() - ageMs)), status: "running" }));
+  }
+
+  test("closes a running row older than 30 minutes as abandoned and opens a new one", async () => {
+    const t = newTest();
+    const stale = await withRunning(t, 31 * 60 * 1000);
+
+    const id = await t.mutation(internal.dataSync.begin, open(iso(Date.now())));
+
+    expect(id).not.toBeNull();
+    const rows = await syncs(t);
+    expect(rows.find((r) => r._id === stale)).toMatchObject({ status: "failed", refusal: "abandoned: still running after 30 min" });
+    expect(rows.find((r) => r._id === stale)?.finished_at).toBeDefined();
+    expect(rows.find((r) => r._id === id)).toMatchObject({ status: "running" });
+  });
+
+  test("returns null while a running row is younger than 30 minutes, and leaves it running", async () => {
+    const t = newTest();
+    const live = await withRunning(t, 29 * 60 * 1000);
+
+    expect(await t.mutation(internal.dataSync.begin, open(iso(Date.now())))).toBeNull();
+    expect(await syncs(t)).toMatchObject([{ _id: live, status: "running" }]);
   });
 });
 
@@ -703,7 +895,7 @@ describe("printings with no image_url", () => {
     const { files, prt } = withoutImage("data/printings/tcgcsv.jsonl");
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("ok");
     const stored = await t.run(
@@ -711,9 +903,9 @@ describe("printings with no image_url", () => {
     );
     expect(stored).not.toBeNull();
     expect(stored).not.toHaveProperty("image_url");
-    const sync = (await syncs(t))[0];
-    expect(sync.unproxied_images).toBe(0);
-    expect(sync).not.toHaveProperty("unproxied_image_keys");
+    const row = (await syncs(t))[0];
+    expect(row.unproxied_images).toBe(0);
+    expect(row).not.toHaveProperty("unproxied_image_keys");
   });
 
   // Every official site's printing file in the fixture, read from the fixture,
@@ -731,7 +923,7 @@ describe("printings with no image_url", () => {
     const { files, prt } = withoutImage(path);
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("refused");
     expect(r.detail).toBe(`${path} line 1: printing ${prt.key} on ${String(prt.site)} has no image_url`);
@@ -765,7 +957,7 @@ describe("printing provenance_url", () => {
     const { files, prt } = withProvenance("data/printings/tcgcsv.jsonl");
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("ok");
     const stored = await t.run(
@@ -797,7 +989,7 @@ describe("don_sets", () => {
     files["data/don_sets.jsonl"] = { type: "don_set", lines: [JSON.stringify(DON_SET_EXAMPLE.record)] };
     serve({ [COMMIT_A]: await repoAt(files) });
 
-    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+    const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("ok");
     const stored = await t.run(async (ctx) => await ctx.db.query("don_sets").collect());
