@@ -68,6 +68,17 @@ describe("GET /api/card-image", () => {
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
   });
 
+  test("TCGplayer's 403 for a missing object is a cached miss, a Bandai 403 is not", async () => {
+    upstream(403, "application/xml");
+    const tcg = await call("/api/card-image/tcgplayer/9999999_in_1000x1000.jpg", "tcgplayer", ["9999999_in_1000x1000.jpg"]);
+    expect(tcg.status).toBe(404);
+    expect(tcg.headers.get("Cache-Control")).toBe("public, max-age=3600");
+    upstream(403, "application/xml");
+    const en = await call(PNG);
+    expect(en.status).toBe(502);
+    expect(en.headers.get("Cache-Control")).toBe("no-store");
+  });
+
   test("a transient upstream failure is an uncached 502", async () => {
     for (const status of [429, 500, 503]) {
       upstream(status, "text/html");

@@ -26,9 +26,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ host: st
     return new Response(null, { status: 502, headers: NO_STORE });
   }
   // A missing id answers 404 text/html, and only that is a cacheable miss.
-  // Anything else that is not an image (429, 5xx, an HTML error page) may be
-  // transient, so it is not cached.
-  if (res.status === 404) {
+  // TCGplayer's CDN is S3, which answers a missing object 403 AccessDenied
+  // (measured 2026-10-10), so there a 403 is the same miss. Anything else that
+  // is not an image (429, 5xx, an HTML error page) may be transient, so it is
+  // not cached.
+  if (res.status === 404 || (host === "tcgplayer" && res.status === 403)) {
     return new Response(null, { status: 404, headers: { "Cache-Control": CACHE_MISS } });
   }
   const type = res.headers.get("content-type") ?? "";
