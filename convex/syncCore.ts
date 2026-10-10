@@ -128,13 +128,25 @@ export async function verifyFile(
   });
 }
 
+// Fields the app derives and stores on a synced row. The data repo never sends
+// them, so a sync must neither count them as a change nor drop them on a
+// replace: either would rewrite every card on every sync.
+export const DERIVED_FIELDS = ["summary"] as const;
+
 // Field-for-field equality between a stored document and an incoming record,
-// ignoring Convex's system fields. Used to skip writes that change nothing, so
-// a re-sync of an unchanged repo costs reads only.
+// ignoring Convex's system fields and the derived ones. Used to skip writes
+// that change nothing, so a re-sync of an unchanged repo costs reads only.
 export function sameRecord(stored: Record<string, unknown>, incoming: Record<string, unknown>): boolean {
-  const strip = (o: Record<string, unknown>) =>
-    Object.fromEntries(Object.entries(o).filter(([k]) => k !== "_id" && k !== "_creationTime"));
+  const skip = new Set<string>(["_id", "_creationTime", ...DERIVED_FIELDS]);
+  const strip = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([k]) => !skip.has(k)));
   return canonical(strip(stored)) === canonical(incoming);
+}
+
+// The incoming record with the stored row's derived fields carried over, for a
+// replace.
+export function keepDerived(stored: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
+  const kept = Object.fromEntries(DERIVED_FIELDS.filter((k) => stored[k] !== undefined).map((k) => [k, stored[k]]));
+  return { ...incoming, ...kept };
 }
 
 function canonical(value: unknown): string {

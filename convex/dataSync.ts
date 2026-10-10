@@ -9,6 +9,7 @@ import {
   type Manifest,
   type SyncRecord,
   type SyncedTable,
+  keepDerived,
   Refusal,
   RETIRED_TYPE,
   SYNCED_TABLES,
@@ -310,6 +311,10 @@ export const retireChain = internalAction({
       return;
     }
     await ctx.runMutation(internal.dataSync.finish, { syncId, status: "ok", retired: before + retired });
+    // The card summaries read the tables this sync just wrote. Their own chain,
+    // so the recompute spends none of this action's budget; it stamps the row
+    // summarized_at when every card is done.
+    await ctx.scheduler.runAfter(0, internal.cardSummary.chain, { syncId });
   },
 });
 
@@ -398,7 +403,7 @@ export const upsertBatch = internalMutation({
         await ctx.db.insert(table, record as never);
         inserted++;
       } else if (!sameRecord(existing, record)) {
-        await ctx.db.replace(existing._id, record as never);
+        await ctx.db.replace(existing._id, keepDerived(existing, record) as never);
         updated++;
       }
     }
