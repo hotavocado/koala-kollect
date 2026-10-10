@@ -41,8 +41,11 @@ npm run lint && npm run typecheck && npm test && npm run build
 `convex/dataSync.ts` copies the data repo into Convex once a day (`convex/crons.ts`).
 It checks every file against the data repo's `manifest.json` (sha256 and row
 count) before writing anything. A mismatch is recorded in the `data_syncs` table
-and nothing is written. Records are upserted by key and never deleted. To run it
-by hand: `npx convex run dataSync:run '{"force": true}'`.
+and nothing is written. Records are upserted by key; the only deletes are the
+printings `data/retired_printings.jsonl` lists. To run it by hand:
+`npx convex run dataSync:run '{"force": true}'`. That returns `"running"` once
+the upserts are written; the retires and the `card_sets` rebuild continue in
+scheduled actions, and the sync's `data_syncs` row shows the end state.
 
 It reads `main`'s commit from git's ref advertisement
 (`https://github.com/<repo>.git/info/refs?service=git-upload-pack`), not from
