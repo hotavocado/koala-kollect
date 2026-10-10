@@ -166,6 +166,9 @@ export default defineSchema({
         site: v.literal("tcgcsv"),
         variant: tcgcsvVariant,
         image_url: v.optional(v.string()),
+        // Where Bandai itself publishes this print's art (a product page or a
+        // news post), when it does. Provenance only: the image stays image_url.
+        provenance_url: v.optional(v.string()),
       }),
     ),
   )
