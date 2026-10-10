@@ -27,9 +27,27 @@ function pathFor(type: RecordType, rec: Rec): string {
   return !ONE_FILE.has(type) && typeof rec.site === "string" ? `data/${table}/${rec.site}.jsonl` : `data/${table}.jsonl`;
 }
 
+// The contract gains don_set after this app accepts it: the sync refuses a
+// manifest type it does not know, so the app ships first. Until the fixture is
+// refreshed from a data main that carries a don_set example, this row stands in
+// for one, mapping the fixture's DON card to its PRB-01 set page.
+const DON_SET_EXAMPLE = {
+  type: "don_set",
+  record: {
+    key: "card_d0d0d0d0d0d0",
+    printing_keys: ["prt_00000000d0d1", "prt_00000000d0d2", "prt_00000000d0d3", "prt_00000000d0d4"],
+    don_design: "PRB-01:don-card-monkey-d-luffy",
+    set_slug: "prb-01",
+    source: "group",
+    first_seen_at: "2026-10-08T00:00:00Z",
+  },
+};
+
 function fixtureFiles(): Record<string, { type: ManifestType; lines: string[] }> {
   const files: Record<string, { type: ManifestType; lines: string[] }> = {};
-  for (const line of fixture.trim().split("\n")) {
+  const lines = fixture.trim().split("\n");
+  if (!lines.some((l) => (JSON.parse(l) as { type: string }).type === "don_set")) lines.push(JSON.stringify(DON_SET_EXAMPLE));
+  for (const line of lines) {
     const { type, record } = JSON.parse(line) as { type: string; record: Rec };
     // ingest_run is audit only; retired_printing is a file but not a table.
     if (!(type in TYPE_TO_TABLE) && type !== RETIRED_TYPE) continue;
@@ -767,5 +785,31 @@ describe("printing provenance_url", () => {
     // Control: the same row without the field inserts, so the throw above is the field's.
     delete prt.provenance_url;
     await t.run(async (ctx) => void (await ctx.db.insert("printings", prt as never)));
+  });
+});
+
+describe("don_sets", () => {
+  // Written out here rather than through fixtureFiles, which skips any type the
+  // app does not map: a sync that did not know don_set would still pass there.
+  test("a don_sets file syncs into its table", async () => {
+    const t = convexTest(schema, modules);
+    const files = fixtureFiles();
+    files["data/don_sets.jsonl"] = { type: "don_set", lines: [JSON.stringify(DON_SET_EXAMPLE.record)] };
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+    expect(r.status).toBe("ok");
+    const stored = await t.run(async (ctx) => await ctx.db.query("don_sets").collect());
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject(DON_SET_EXAMPLE.record);
+  });
+
+  test("the schema takes the example and refuses a source outside group, override and promo", async () => {
+    const t = convexTest(schema, modules);
+    const row = { ...DON_SET_EXAMPLE.record };
+    await t.run(async (ctx) => void (await ctx.db.insert("don_sets", row as never)));
+    const bad = { ...row, source: "guess" };
+    await expect(t.run(async (ctx) => void (await ctx.db.insert("don_sets", bad as never)))).rejects.toThrow();
   });
 });
