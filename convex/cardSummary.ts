@@ -64,9 +64,12 @@ export const stamp = internalMutation({
   },
 });
 
+// The env var can only shorten the budget (tests set 0): above the default, an
+// invocation could hit the 10-minute action limit before it schedules the
+// next, and the cursor would die with it.
 function budgetMs(): number {
-  const raw = process.env.KK_SUMMARY_BUDGET_MS;
-  return raw === undefined ? SUMMARY_BUDGET_MS : Number(raw);
+  const ms = Number(process.env.KK_SUMMARY_BUDGET_MS ?? NaN);
+  return Number.isFinite(ms) && ms >= 0 ? Math.min(ms, SUMMARY_BUDGET_MS) : SUMMARY_BUDGET_MS;
 }
 
 export const chain = internalAction({
