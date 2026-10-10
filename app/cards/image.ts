@@ -97,3 +97,31 @@ export function upstreamImageUrl(host: string, file: string): string | null {
   if (!Object.hasOwn(HOSTS, host) || !FILE.test(file)) return null;
   return `https://${HOSTS[host as keyof typeof HOSTS]}${PATH}${file}`;
 }
+
+// Card images reach the page resized by Vercel's image optimizer, which
+// fetches them from the proxy above and keeps its cache across deploys (the
+// proxy's own edge cache empties on every deploy). One width per surface, each
+// twice the surface's CSS width: the set tile (181px at six columns), the
+// printing thumbnail on a card page (80px) and the finder row (48px). The
+// optimizer refuses any width or quality not listed in next.config.ts, which
+// reads these, so no other derivative can be minted.
+export const CARD_IMAGE_WIDTHS = { tile: 362, thumb: 160, finder: 96 } as const;
+export type CardImageSize = keyof typeof CARD_IMAGE_WIDTHS;
+export const CARD_IMAGE_QUALITY = 80;
+
+export function optimizedImageUrl(proxied: string, size: CardImageSize): string {
+  return `/_next/image?url=${encodeURIComponent(proxied)}&w=${CARD_IMAGE_WIDTHS[size]}&q=${CARD_IMAGE_QUALITY}`;
+}
+
+// What CardImage tries, in order, skipping any url that already failed: the
+// optimizer's resize (when the surface has a size), then the full image from
+// the proxy. null means show the text face.
+export function cardImageSrc(
+  imageUrl: string | null,
+  size: CardImageSize | undefined,
+  failed: ReadonlySet<string>,
+): string | null {
+  const proxied = proxiedImageUrl(imageUrl);
+  if (!proxied) return null;
+  return [size && optimizedImageUrl(proxied, size), proxied].find((s): s is string => !!s && !failed.has(s)) ?? null;
+}
