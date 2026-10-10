@@ -5,11 +5,12 @@ import { confidenceShown, handoutWhen, quantityNoteShown, releaseLabel } from ".
 
 // Shared by the card page and each print's page, so a print's origin reads the
 // same in both places.
-export const SITE_LABEL: Record<CardRegion["site"], string> = {
+// Keyed by language: TCGplayer's printings sit under English, never a heading
+// of their own.
+export const SITE_LABEL: Record<CardRegion["language"], string> = {
   en: "English",
   jp: "Japanese",
   cn: "Simplified Chinese",
-  tcgcsv: "TCGplayer",
 };
 
 export const VARIANT_LABEL: Record<CardPrinting["variant"], string> = {
