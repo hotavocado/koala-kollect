@@ -15,7 +15,7 @@ export const listProducts = internalQuery({
   args: {},
   handler: async (ctx): Promise<ProductInput[]> => {
     const products = await ctx.db.query("products").collect();
-    return products.map(({ key, site, code, name, kind, release_date }) => ({ key, site, code, name, kind, release_date }));
+    return products.map(({ key, site, code, name, name_en, kind, release_date }) => ({ key, site, code, name, name_en, kind, release_date }));
   },
 });
 

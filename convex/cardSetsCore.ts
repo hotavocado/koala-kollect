@@ -22,7 +22,7 @@ export const SET_KIND_ORDER: readonly SetKind[] = [
   "other",
 ];
 
-export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name" | "kind" | "release_date">;
+export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name" | "name_en" | "kind" | "release_date">;
 
 export type ReleaseSite = "en" | "jp";
 
@@ -60,8 +60,75 @@ const BUCKET_TITLE: Record<SetKind, string> = {
 };
 
 // Whose product name becomes the title: asia-en writes titles in title case,
-// en often in capitals, and jp and tc only in their own languages.
-const TITLE_SITE_ORDER: Doc<"products">["site"][] = ["asia-en", "en", "jp", "tc", "cn"];
+// en often in capitals (englishTitle evens those out), and jp and tc only in
+// their own languages, so a product's own name_en goes ahead of theirs.
+const ENGLISH_SITES: Doc<"products">["site"][] = ["asia-en", "en"];
+const OTHER_SITES: Doc<"products">["site"][] = ["jp", "tc", "cn"];
+
+// Written as the products print them, so englishTitle leaves them alone.
+const BRAND_PHRASES = ["ONE PIECE CARD THE BEST", "ONE PIECE", "KAMI"];
+const SMALL_WORDS = new Set(["a", "an", "and", "at", "by", "for", "in", "of", "on", "or", "the", "to"]);
+const COLOR_WORDS = new Set(["RED", "GREEN", "BLUE", "PURPLE", "BLACK", "YELLOW"]);
+
+// en writes most set names in capitals: "THE AZURE SEA’S SEVEN" reads as
+// "The Azure Sea’s Seven", as asia-en wrote it. Only a title that is all
+// capitals is recased, so a deliberately mixed one ("ONE PIECE FILM edition")
+// is left as written, and so is any word with a digit ("GEAR5", "3D2Y"). A
+// starter's leading deck colour ("RED Shanks", "PURPLE/BLACK Monkey.D.Luffy")
+// is recased on its own. Brand phrases keep their capitals.
+export function englishTitle(title: string): string {
+  const words = title.split(" ");
+  const lettered = words.filter((w) => !/\d/.test(w) && /[A-Za-z]/.test(w));
+  if (lettered.length > 0 && lettered.every((w) => w === w.toUpperCase())) {
+    return recase(title);
+  }
+  const [first, ...rest] = words;
+  if (first && first.split("/").every((c) => COLOR_WORDS.has(c))) {
+    return [first.split("/").map(capitalise).join("/"), ...rest].join(" ");
+  }
+  return title;
+}
+
+function capitalise(word: string): string {
+  return word.charAt(0) + word.slice(1).toLowerCase();
+}
+
+function recase(title: string): string {
+  // Brand phrases are swapped out first so no word inside one is recased.
+  const kept: string[] = [];
+  let text = title;
+  for (const phrase of BRAND_PHRASES) {
+    text = text.replace(new RegExp(`\\b${phrase}\\b`, "g"), () => `\u0000${kept.push(phrase) - 1}\u0000`);
+  }
+  const out = text
+    .split(" ")
+    .map((word, i) => {
+      // "KAMI’S" -> "KAMI’s": the brand stays, what follows it does not.
+      if (word.includes("\u0000")) {
+        const end = word.lastIndexOf("\u0000") + 1;
+        return word.slice(0, end) + word.slice(end).toLowerCase();
+      }
+      if (/\d/.test(word)) return word;
+      // "SEA’S" -> "Sea’s": the possessive s is not a word start.
+      const lower = word.toLowerCase();
+      if (i > 0 && SMALL_WORDS.has(lower)) return lower;
+      return capitalise(word);
+    })
+    .join(" ");
+  return out.replace(/\u0000(\d+)\u0000/g, (_, n: string) => kept[Number(n)]);
+}
+
+// The set's title from its products: an English site's name first, then any
+// product's own name_en (written by the data repo, so used as it is), then
+// the other sites' names.
+function setTitle(products: ProductInput[]): string | null {
+  const english = ENGLISH_SITES.map((s) => products.find((p) => p.site === s)).find(Boolean);
+  if (english) return englishTitle(productTitle(english.name)) || null;
+  const nameEn = products.find((p) => p.name_en)?.name_en;
+  if (nameEn) return nameEn;
+  const other = OTHER_SITES.map((s) => products.find((p) => p.site === s)).find(Boolean);
+  return (other && productTitle(other.name)) || null;
+}
 
 // "BOOSTER PACK -Royal Blood- [OP-10]" -> "Royal Blood" (en, asia-en).
 // "スタートデッキ 麦わらの一味【ST-01】" -> "スタートデッキ 麦わらの一味" (jp, tc).
@@ -118,8 +185,7 @@ export function groupProducts(products: ProductInput[]): SetGroup[] {
   const groups = [...bySlug].map(([slug, g]) => {
     let title = BUCKET_TITLE[g.kind];
     if (g.code !== null) {
-      const named = TITLE_SITE_ORDER.map((s) => g.products.find((p) => p.site === s)).find(Boolean);
-      title = (named && productTitle(named.name)) || g.code;
+      title = setTitle(g.products) ?? g.code;
     }
     const en = siteDate(g.products, "en");
     const jp = en === null ? siteDate(g.products, "jp") : null;
