@@ -216,3 +216,54 @@ test("own prefixes", () => {
   expect(ownPrefixes("OP14-EB04")).toEqual(["OP14", "EB04"]);
   expect(ownPrefixes(null)).toEqual([]);
 });
+
+function don(key: string, don_design: string) {
+  return {
+    key,
+    don_design,
+    category: "don" as const,
+    colors: [],
+    attributes: [],
+    facts_site: "tcgcsv" as const,
+    first_seen_at: T,
+  };
+}
+
+function donSet(key: string, don_design: string, set_slug: string, printing_keys: string[] = []) {
+  return { key, printing_keys, don_design, set_slug, source: "group" as const, first_seen_at: T };
+}
+
+test("a set lists the DON cards don_sets places on it, apart from its numbered cards", async () => {
+  const t = await seed();
+  await t.run(async (ctx) => {
+    await ctx.db.insert("cards", don("card_don_z", "OP-01:roronoa-zoro"));
+    await ctx.db.insert("cards", don("card_don_l", "OP-01:monkey-d-luffy"));
+    await ctx.db.insert("cards", don("card_don_p", "OP-PR:black-and-gold"));
+    await ctx.db.insert("printings", {
+      ...printing("prt_don_z", "card_don_z", "en"),
+      site: "tcgcsv" as const,
+      variant: "normal" as const,
+    });
+    await ctx.db.insert("don_sets", donSet("card_don_z", "OP-01:roronoa-zoro", "op-01", ["prt_don_z"]));
+    await ctx.db.insert("don_sets", donSet("card_don_l", "OP-01:monkey-d-luffy", "op-01"));
+    await ctx.db.insert("don_sets", donSet("card_don_p", "OP-PR:black-and-gold", "promo"));
+    // A card the set already lists through its products is not listed twice.
+    await ctx.db.insert("don_sets", donSet("card_a", "OP-01:listed", "op-01"));
+  });
+  await t.action(internal.cardSets.rebuild, {});
+
+  const op01 = await t.query(api.cards.setCards, { slug: "op-01" });
+  expect(op01?.cards.map((c) => c.number)).toEqual(["OP01-009", "OP01-010"]);
+  expect(op01?.don.map((c) => c.donDesign)).toEqual(["OP-01:monkey-d-luffy", "OP-01:roronoa-zoro"]);
+  expect(op01?.don.find((c) => c.key === "card_don_z")?.imageUrl).toBe("https://example.test/prt_don_z.png");
+
+  const promo = await t.query(api.cards.setCards, { slug: "promo" });
+  expect(promo?.cards.map((c) => c.number)).toEqual(["P-001"]);
+  expect(promo?.don.map((c) => c.key)).toEqual(["card_don_p"]);
+});
+
+test("a set with no DON placed on it has an empty DON list", async () => {
+  const t = await seed();
+  await t.action(internal.cardSets.rebuild, {});
+  expect((await t.query(api.cards.setCards, { slug: "op-01" }))?.don).toEqual([]);
+});

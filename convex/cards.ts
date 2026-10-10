@@ -164,12 +164,50 @@ export function ownPrefixes(code: string | null): string[] {
   return /^[A-Z]+-\d+$/.test(code) ? [code.replace("-", "")] : code.split("-");
 }
 
+// DON cards placed on this set by data/don_sets.jsonl. No official site lists
+// DON under a product, so they reach a set only through don_sets, never through
+// printing_products; a card the set already lists stays where it is. The
+// thumbnail is the DON's own tcgcsv printing. Ordered by design.
+async function setDon(ctx: QueryCtx, slug: string, listed: Map<string, unknown>): Promise<BrowseCard[]> {
+  const placed = await ctx.db
+    .query("don_sets")
+    .withIndex("by_set_slug", (q) => q.eq("set_slug", slug))
+    .collect();
+  const rows = await Promise.all(
+    placed
+      .filter((d) => !listed.has(d.key))
+      .map(async (d) => {
+        const [card, printings] = await Promise.all([
+          ctx.db
+            .query("cards")
+            .withIndex("by_key", (q) => q.eq("key", d.key))
+            .unique(),
+          Promise.all(
+            d.printing_keys.map((k) =>
+              ctx.db
+                .query("printings")
+                .withIndex("by_key", (q) => q.eq("key", k))
+                .unique(),
+            ),
+          ),
+        ]);
+        return card ? browseRow(ctx, card, printings.filter((p) => p !== null)) : null;
+      }),
+  );
+  return rows
+    .filter((r) => r !== null)
+    .sort(
+      (a, b) =>
+        (a.donDesign ?? "").localeCompare(b.donDesign ?? "", "en", { numeric: true }) || a.key.localeCompare(b.key),
+    );
+}
+
 export const setCards = query({
   args: { slug: v.string() },
   handler: async (
     ctx,
     { slug },
-  ): Promise<{ set: CardSetRow; cards: BrowseCard[]; fromOtherSets: BrowseCard[] } | null> => {
+  ): Promise<{ set: CardSetRow; cards: BrowseCard[]; fromOtherSets: BrowseCard[]; don: BrowseCard[] } | null> => {
     const set = await ctx.db
       .query("card_sets")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
@@ -218,8 +256,9 @@ export const setCards = query({
     const own = ownPrefixes(set.code ?? null);
     const isOwn = (c: BrowseCard) => own.length === 0 || own.includes(c.number?.split("-")[0] ?? "");
     const ownCards = rows.filter(isOwn);
-    if (ownCards.length * 2 < rows.length) return { set: setRow(set), cards: rows, fromOtherSets: [] };
-    return { set: setRow(set), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)) };
+    const don = await setDon(ctx, slug, linked);
+    if (ownCards.length * 2 < rows.length) return { set: setRow(set), cards: rows, fromOtherSets: [], don };
+    return { set: setRow(set), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)), don };
   },
 });
 
