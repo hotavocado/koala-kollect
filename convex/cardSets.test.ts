@@ -260,6 +260,10 @@ test("a set lists the DON cards don_sets places on it, apart from its numbered c
   const promo = await t.query(api.cards.setCards, { slug: "promo" });
   expect(promo?.cards.map((c) => c.number)).toEqual(["P-001"]);
   expect(promo?.don.map((c) => c.key)).toEqual(["card_don_p"]);
+
+  // The set index counts the DON cards the page shows, once each.
+  const counts = Object.fromEntries((await t.query(api.cards.sets, {})).map((s) => [s.slug, s.cardCount]));
+  expect(counts).toEqual({ "op-01": 4, promo: 2 });
 });
 
 test("a set with no DON placed on it has an empty DON list", async () => {

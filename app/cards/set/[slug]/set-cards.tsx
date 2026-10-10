@@ -26,7 +26,7 @@ function ConnectedSet({ slug }: { slug: string }) {
   }
 
   const { set, cards, fromOtherSets, don } = result;
-  const total = cards.length + fromOtherSets.length;
+  const total = cards.length + fromOtherSets.length + don.length;
   const released = releaseLabel(set, "day");
   return (
     <>

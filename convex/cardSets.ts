@@ -59,6 +59,21 @@ export const upsertSet = internalMutation({
         if (printing) cards.add(printing.card_key);
       }
     }
+    // DON cards reach a set only through don_sets (see setDon in cards.ts), and
+    // the set page lists them, so they count too. The Set keeps a DON the set
+    // already lists from being counted twice.
+    const placed = await ctx.db
+      .query("don_sets")
+      .withIndex("by_set_slug", (q) => q.eq("set_slug", group.slug))
+      .collect();
+    for (const d of placed) {
+      if (cards.has(d.key)) continue;
+      const card = await ctx.db
+        .query("cards")
+        .withIndex("by_key", (q) => q.eq("key", d.key))
+        .unique();
+      if (card) cards.add(d.key);
+    }
 
     const { code, release_date, release_site, ...rest } = group;
     const row = {
