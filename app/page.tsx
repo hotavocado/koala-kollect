@@ -13,7 +13,7 @@ export default function Home() {
 
       <main className="container flex flex-1 flex-col gap-8 pb-12 pt-4 xs:pt-10">
         <h1 className="max-w-2xl text-3xl font-semibold xs:text-5xl">
-          Every One Piece card ever printed, and where each one came from.
+          Digital home for your One Piece TCG collection
         </h1>
 
         <ArtSlot />
