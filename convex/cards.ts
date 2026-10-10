@@ -589,7 +589,10 @@ export const detail = query({
       const last = regions[regions.length - 1];
       const language = LANGUAGE_OF[site];
       if (last?.language === language) last.printings.push(printing);
-      else regions.push({ language, listUrl: listUrl(language, card.number), printings: [printing] });
+      // The link is the first printing's site: an official one when the
+      // language has any (they sort first), so English holding only
+      // TCGplayer's printings gets no official link.
+      else regions.push({ language, listUrl: listUrl(site, card.number), printings: [printing] });
     }
 
     const obs = pickObservation(observations);

@@ -171,7 +171,9 @@ function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: 
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-xs text-muted-foreground">
-          {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds].join(" · ")}
+          {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds, p.site === "tcgcsv" ? "from TCGplayer" : null]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
 
         {/* The provenance string is the card list's own words, shown verbatim. */}

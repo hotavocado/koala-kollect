@@ -468,6 +468,21 @@ describe("a stamped print", () => {
     expect(card?.imageUrl).toBe(before?.imageUrl);
   });
 
+  test("English holding only TCGplayer's printings links to no official list", async () => {
+    const t = await seededWithStamp();
+    await t.run(async (ctx) => {
+      for (const p of await ctx.db.query("printings").withIndex("by_card", (q) => q.eq("card_key", ZORO)).collect()) {
+        if (p.site === "en") await ctx.db.delete(p._id);
+      }
+      await ctx.db.insert("printings", printing("prt_00000000000b", "jp", "base"));
+    });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    expect(card?.regions.map((r) => [r.language, r.listUrl, r.printings.map((p) => p.key)])).toEqual([
+      ["en", null, [STAMPED]],
+      ["jp", "https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001", ["prt_00000000000b"]],
+    ]);
+  });
+
   test("its print page reads the same printing the card page lists", async () => {
     const t = await seededWithStamp();
     const print = await t.query(api.cards.print, { cardKey: ZORO, printKey: STAMPED });

@@ -61,6 +61,7 @@ function Print({ print: { card, site, language, listUrl, printing: p } }: { prin
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {SITE_LABEL[language]}
+              {site === "tcgcsv" && " · from TCGplayer"}
               {p.imageIds.length > 0 && ` · ${p.imageIds.join(" · ")}`}
             </p>
           </div>
