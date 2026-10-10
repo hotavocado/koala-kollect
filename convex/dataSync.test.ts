@@ -460,6 +460,63 @@ describe("dataSync.run", () => {
       expect((await rowsFor(t, RETIRED)).printings).toBe(1);
     });
 
+    // begin closes a row still "running" after 30 minutes. A chain still
+    // working on that row must not delete past it or reopen it.
+    async function abandonedRow(t: ReturnType<typeof newTest>) {
+      return await t.run(async (ctx) =>
+        await ctx.db.insert("data_syncs", {
+          data_commit: COMMIT_B,
+          manifest_sha256: "",
+          started_at: "2026-10-10T00:00:00Z",
+          status: "failed",
+          refusal: "abandoned: still running after 30 min",
+          finished_at: "2026-10-10T00:30:00Z",
+        }),
+      );
+    }
+
+    test("a retire batch for a sync that is no longer running deletes nothing", async () => {
+      const t = newTest();
+      serve({ [COMMIT_A]: await repoAt() });
+      await sync(t, { commit: COMMIT_A });
+      const syncId = await abandonedRow(t);
+
+      await expect(t.mutation(internal.dataSync.retireBatch, { keys: [RETIRED], syncId })).rejects.toThrow(
+        /retire fenced: sync \S+ is failed, not running/,
+      );
+      expect((await rowsFor(t, RETIRED)).printings).toBe(1);
+    });
+
+    test("finish and progress leave a closed row as it is", async () => {
+      const t = newTest();
+      const syncId = await abandonedRow(t);
+      const before = await t.run(async (ctx) => await ctx.db.get(syncId));
+
+      await t.mutation(internal.dataSync.progress, { syncId, retired: 20 });
+      await t.mutation(internal.dataSync.finish, { syncId, status: "ok", retired: 45 });
+
+      expect(await t.run(async (ctx) => await ctx.db.get(syncId))).toEqual(before);
+    });
+
+    test("a chain whose row was abandoned before it ran retires nothing and leaves the row failed", async () => {
+      const t = newTest();
+      serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(afterRetire(fixtureFiles())) });
+      await sync(t, { commit: COMMIT_A });
+      vi.useFakeTimers();
+      try {
+        expect((await t.action(internal.dataSync.run, { commit: COMMIT_B })).status).toBe("running");
+        const row = (await syncs(t)).at(-1)!;
+        await t.run(async (ctx) => await ctx.db.patch(row._id, { status: "failed", refusal: "abandoned: still running after 30 min" }));
+
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect((await syncs(t)).at(-1)).toMatchObject({ status: "failed", refusal: "abandoned: still running after 30 min" });
+      expect((await rowsFor(t, RETIRED)).printings).toBe(1);
+    });
+
     async function rowsFor(t: ReturnType<typeof newTest>, key: string) {
       return await t.run(async (ctx) => {
         const out: Record<string, number> = {

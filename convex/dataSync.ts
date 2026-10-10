@@ -288,7 +288,7 @@ export const retireChain = internalAction({
       let at = offset;
       // At least one batch per invocation, so the chain always moves.
       while (at < keys.length && (at === offset || Date.now() - started < budget)) {
-        retired += await ctx.runMutation(internal.dataSync.retireBatch, { keys: keys.slice(at, at + RETIRE_BATCH_SIZE) });
+        retired += await ctx.runMutation(internal.dataSync.retireBatch, { keys: keys.slice(at, at + RETIRE_BATCH_SIZE), syncId });
         at += RETIRE_BATCH_SIZE;
       }
       if (at < keys.length) {
@@ -296,6 +296,10 @@ export const retireChain = internalAction({
         await ctx.scheduler.runAfter(0, internal.dataSync.retireChain, { commit, syncId, offset: at });
         return;
       }
+      // begin may have abandoned the row while the last batches ran. The
+      // rebuild is not one transaction, so this is a check, not a fence; a
+      // late rebuild only re-derives card_sets from the tables as they are.
+      if ((await ctx.runQuery(internal.dataSync.syncRow, { syncId }))?.status !== "running") return;
       // Inside the try so a failed rebuild closes the sync "failed" and the
       // next run retries the commit; an "ok" commit is never revisited.
       await rebuildCardSets(ctx);
@@ -357,6 +361,7 @@ export const progress = internalMutation({
     unproxied_image_sites: v.optional(v.array(v.object({ site: printingSite, count: v.number() }))),
   },
   handler: async (ctx, { syncId, ...fields }) => {
+    if ((await ctx.db.get(syncId))?.status !== "running") return;
     await ctx.db.patch(syncId, fields);
   },
 });
@@ -372,7 +377,10 @@ export const finish = internalMutation({
     unproxied_image_keys: v.optional(v.array(v.string())),
     unproxied_image_sites: v.optional(v.array(v.object({ site: printingSite, count: v.number() }))),
   },
+  // A closed row stays closed: a chain that outlived begin's TTL must not turn
+  // the row begin abandoned back into "ok".
   handler: async (ctx, { syncId, ...fields }) => {
+    if ((await ctx.db.get(syncId))?.status !== "running") return;
     await ctx.db.patch(syncId, { ...fields, finished_at: nowIso() });
   },
 });
@@ -400,10 +408,16 @@ export const upsertBatch = internalMutation({
 
 // Deletes each retired printing and every row on its exact key, through the
 // by_printing indexes (eq, never a prefix range). Returns the printings
-// deleted; a key already gone counts 0.
+// deleted; a key already gone counts 0. Given a sync, it refuses unless that
+// sync is still running, in the same transaction as the deletes, so a chain
+// begin has abandoned stops at its next batch.
 export const retireBatch = internalMutation({
-  args: { keys: v.array(v.string()) },
-  handler: async (ctx, { keys }) => {
+  args: { keys: v.array(v.string()), syncId: v.optional(v.id("data_syncs")) },
+  handler: async (ctx, { keys, syncId }) => {
+    if (syncId !== undefined) {
+      const status = (await ctx.db.get(syncId))?.status;
+      if (status !== "running") throw new Error(`retire fenced: sync ${syncId} is ${status ?? "gone"}, not running`);
+    }
     let deleted = 0;
     for (const key of keys) {
       const printing = await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", key)).unique();
