@@ -27,10 +27,37 @@ describe("proxiedImageUrl", () => {
       "https://en.onepiece-cardgame.com/images/cardlist/card/../../secret.png",
       "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.jpg",
       "https://en.onepiece-cardgame.com:8443/images/cardlist/card/OP01-001.png",
-      "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg",
+      "https://tcgplayer-cdn.tcgplayer.com.evil.example/product/712717_in_1000x1000.jpg",
+      "https://evil.example/product/712717_in_1000x1000.jpg",
     ]) {
       expect(proxiedImageUrl(url)).toBeNull();
     }
+  });
+});
+
+// tcgcsv prints have only TCGplayer's image. 712717 is the stamped Chopper
+// OP17-084 (prt_y59a36txa2uy) that rendered blank.
+describe("TCGplayer images", () => {
+  const TCG = "https://tcgplayer-cdn.tcgplayer.com/product/712717_in_1000x1000.jpg";
+
+  test("a TCGplayer CDN image maps to our path and back", () => {
+    expect(proxiedImageUrl(TCG)).toBe("/api/card-image/tcgplayer/712717_in_1000x1000.jpg");
+    expect(upstreamImageUrl("tcgplayer", "712717_in_1000x1000.jpg")).toBe(TCG);
+  });
+
+  test("anything else on the TCGplayer CDN is refused", () => {
+    for (const url of [
+      "http://tcgplayer-cdn.tcgplayer.com/product/712717_in_1000x1000.jpg",
+      "https://tcgplayer-cdn.tcgplayer.com/product/712717_in_1000x1000.jpg?x=1",
+      "https://tcgplayer-cdn.tcgplayer.com/product/712717_in_200x200.jpg",
+      "https://tcgplayer-cdn.tcgplayer.com/other/712717_in_1000x1000.jpg",
+      "https://tcgplayer-cdn.tcgplayer.com/product/x/712717_in_1000x1000.jpg",
+      "https://tcgplayer-cdn.tcgplayer.com/product/712717_in_1000x1000.png",
+    ]) {
+      expect(proxiedImageUrl(url)).toBeNull();
+    }
+    expect(upstreamImageUrl("tcgplayer", "../712717_in_1000x1000.jpg")).toBeNull();
+    expect(upstreamImageUrl("tcgplayer", "OP01-001.png")).toBeNull();
   });
 });
 

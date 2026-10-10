@@ -36,6 +36,16 @@ describe("GET /api/card-image", () => {
     );
   });
 
+  test("a TCGplayer image is fetched from TCGplayer's CDN", async () => {
+    const fetchMock = upstream(200, "image/jpeg");
+    const res = await call("/api/card-image/tcgplayer/712717_in_1000x1000.jpg", "tcgplayer", ["712717_in_1000x1000.jpg"]);
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://tcgplayer-cdn.tcgplayer.com/product/712717_in_1000x1000.jpg",
+      expect.anything(),
+    );
+  });
+
   test("a folder on a Bandai host is refused before any upstream fetch", async () => {
     const fetchMock = upstream(200, "image/png");
     const res = await call("/api/card-image/en/x/OP01-001.png", "en", ["x", "OP01-001.png"]);

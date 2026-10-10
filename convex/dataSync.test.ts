@@ -128,7 +128,7 @@ describe("dataSync.run", () => {
       return Object.keys(files).filter((p) => files[p].type === "printing");
     }
     // The fixture's DON printings, read from the fixture, not typed: every
-    // tcgcsv image is on tcgplayer-cdn, which the proxy refuses. A tcgcsv
+    // tcgcsv image is on tcgplayer-cdn, which the proxy passes. A tcgcsv
     // printing with no image yet has nothing to refuse and is not counted.
     const DON_KEYS = (fixtureFiles()["data/printings/tcgcsv.jsonl"]?.lines ?? [])
       .map((l) => JSON.parse(l) as Rec)
@@ -137,18 +137,34 @@ describe("dataSync.run", () => {
       .sort();
     const N = DON_KEYS.length;
 
-    test("the fixture's tcgcsv DON printings are counted", async () => {
+    test("the fixture's tcgcsv DON printings are proxied, so none are counted", async () => {
       expect(N).toBeGreaterThan(1); // normal, foil and gold, so the count is not a lone 1
       const t = convexTest(schema, modules);
       serve({ [COMMIT_A]: await repoAt() });
 
       const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
 
-      expect(r.detail).toMatch(new RegExp(`; ${N} printing images not proxied \\(tcgcsv ${N}\\): ${DON_KEYS.join(", ")}$`));
+      expect(r.detail).toMatch(/; 0 printing images not proxied$/);
+      expect((await syncs(t))[0].unproxied_images).toBe(0);
+    });
+
+    test("a tcgcsv printing outside the TCGplayer file rule is counted under tcgcsv", async () => {
+      const t = convexTest(schema, modules);
+      const files = fixtureFiles();
+      const path = "data/printings/tcgcsv.jsonl";
+      const i = files[path].lines.findIndex((l) => (JSON.parse(l) as Rec).image_url !== undefined);
+      const prt = JSON.parse(files[path].lines[i]) as Rec;
+      prt.image_url = String(prt.image_url).replace(/_in_1000x1000\.jpg$/, "_in_200x200.jpg");
+      files[path].lines[i] = JSON.stringify(prt);
+      serve({ [COMMIT_A]: await repoAt(files) });
+
+      const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
+
+      expect(r.detail).toMatch(new RegExp(`; 1 printing image not proxied \\(tcgcsv 1\\): ${prt.key}$`));
       expect((await syncs(t))[0]).toMatchObject({
-        unproxied_images: N,
-        unproxied_image_keys: DON_KEYS,
-        unproxied_image_sites: [{ site: "tcgcsv", count: N }],
+        unproxied_images: 1,
+        unproxied_image_keys: [prt.key],
+        unproxied_image_sites: [{ site: "tcgcsv", count: 1 }],
       });
     });
 
@@ -164,17 +180,11 @@ describe("dataSync.run", () => {
       const r = await t.action(internal.dataSync.run, { commit: COMMIT_A });
 
       expect(r.status).toBe("ok");
-      const keys = [prt.key, ...DON_KEYS].sort();
-      expect(r.detail).toMatch(
-        new RegExp(`; ${N + 1} printing images not proxied \\(en 1, tcgcsv ${N}\\): ${keys.join(", ")}$`),
-      );
+      expect(r.detail).toMatch(new RegExp(`; 1 printing image not proxied \\(en 1\\): ${prt.key}$`));
       expect((await syncs(t))[0]).toMatchObject({
-        unproxied_images: N + 1,
-        unproxied_image_keys: keys,
-        unproxied_image_sites: [
-          { site: "en", count: 1 },
-          { site: "tcgcsv", count: N },
-        ],
+        unproxied_images: 1,
+        unproxied_image_keys: [prt.key],
+        unproxied_image_sites: [{ site: "en", count: 1 }],
       });
     });
 
@@ -210,15 +220,10 @@ describe("dataSync.run", () => {
 
       expect(r.status).toBe("ok");
       const [row] = await syncs(t);
-      expect(row.unproxied_images).toBe(60 + N);
+      expect(row.unproxied_images).toBe(60);
       expect(row.unproxied_image_keys).toHaveLength(50);
-      expect(row.unproxied_image_sites).toEqual([
-        { site: "en", count: 60 },
-        { site: "tcgcsv", count: N },
-      ]);
-      expect(r.detail).toMatch(
-        new RegExp(`; ${60 + N} printing images not proxied \\(en 60, tcgcsv ${N}\\): .+, and ${10 + N} more$`),
-      );
+      expect(row.unproxied_image_sites).toEqual([{ site: "en", count: 60 }]);
+      expect(r.detail).toMatch(/; 60 printing images not proxied \(en 60\): .+, and 10 more$/);
     });
   });
 
@@ -689,8 +694,8 @@ describe("printings with no image_url", () => {
     expect(stored).not.toBeNull();
     expect(stored).not.toHaveProperty("image_url");
     const sync = (await syncs(t))[0];
-    expect(sync.unproxied_image_keys).not.toContain(prt.key);
-    expect(sync.unproxied_image_sites).toEqual([{ site: "tcgcsv", count: sync.unproxied_images }]);
+    expect(sync.unproxied_images).toBe(0);
+    expect(sync).not.toHaveProperty("unproxied_image_keys");
   });
 
   // Every official site's printing file in the fixture, read from the fixture,

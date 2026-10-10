@@ -6,6 +6,10 @@
 // open proxy. Every printing in the data uses exactly this pattern (measured
 // 2026-10-08: 19,669 rows, four hosts, one path, .png, no query).
 //
+// tcgcsv prints (stamped, DON) have only TCGplayer's image, so its CDN passes
+// too. Measured 2026-10-10 over data main 0ceb11c: 783 of 862 tcgcsv rows
+// carry one, all /product/<id>_in_1000x1000.jpg, no query; 79 carry none.
+//
 // cn's images are on Windo's host, which allows cross-origin loads, but they
 // come through here too so every card image takes one path. Measured
 // 2026-10-08 over all 4,927 cn rows: one folder, png and jpg, no query, 4,926
@@ -23,6 +27,10 @@ const HOSTS = {
 
 const PATH = "/images/cardlist/card/";
 const FILE = /^[A-Za-z0-9_-]+\.png$/;
+
+const TCG_HOST = "tcgplayer-cdn.tcgplayer.com";
+const TCG_PATH = "/product/";
+const TCG_FILE = /^[0-9]+_in_1000x1000\.jpg$/;
 
 const CN_HOST = "source.windoent.com";
 const CN_PATH = "/OnePiecePc/Picture/";
@@ -62,6 +70,10 @@ export function proxiedImageUrl(imageUrl: string | null): string | null {
     return null;
   }
   if (url.protocol !== "https:" || url.search || url.hash || url.port) return null;
+  if (url.hostname === TCG_HOST) {
+    const file = url.pathname.startsWith(TCG_PATH) ? url.pathname.slice(TCG_PATH.length) : "";
+    return TCG_FILE.test(file) ? `/api/card-image/tcgplayer/${file}` : null;
+  }
   if (url.hostname === CN_HOST) {
     if (!url.pathname.startsWith(CN_PATH)) return null;
     const segments = cnSegments(url.pathname.slice(CN_PATH.length));
@@ -81,6 +93,7 @@ export function upstreamImageUrl(host: string, file: string): string | null {
     const segments = cnSegments(file);
     return segments && `https://${CN_HOST}${CN_PATH}${segments.map(cnEncode).join("/")}`;
   }
+  if (host === "tcgplayer") return TCG_FILE.test(file) ? `https://${TCG_HOST}${TCG_PATH}${file}` : null;
   if (!Object.hasOwn(HOSTS, host) || !FILE.test(file)) return null;
   return `https://${HOSTS[host as keyof typeof HOSTS]}${PATH}${file}`;
 }
