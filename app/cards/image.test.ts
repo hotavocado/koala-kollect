@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { proxiedImageUrl, upstreamImageUrl } from "./image";
+import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS, cardImageSrc, optimizedImageUrl, proxiedImageUrl, upstreamImageUrl } from "./image";
 
 describe("proxiedImageUrl", () => {
   test("each official host maps to our path and back", () => {
@@ -119,5 +119,50 @@ describe("cn images", () => {
     // A Bandai host never takes a folder or a cn-style name.
     expect(upstreamImageUrl("en", "af544721305c4c75aa744e0cbb4508b2/OP05-060.png")).toBeNull();
     expect(upstreamImageUrl("en", "EB02-046(1).png")).toBeNull();
+  });
+});
+
+describe("optimizedImageUrl", () => {
+  test("asks the optimizer for the proxied image at the surface's one width", () => {
+    const proxied = "/api/card-image/en/OP01-001_p1.png";
+    expect(optimizedImageUrl(proxied, "tile")).toBe("/_next/image?url=%2Fapi%2Fcard-image%2Fen%2FOP01-001_p1.png&w=362&q=80");
+    expect(optimizedImageUrl(proxied, "thumb")).toContain("&w=160&");
+    expect(optimizedImageUrl(proxied, "finder")).toContain("&w=96&");
+  });
+
+  // The optimizer serves only widths and qualities next.config.ts lists, and
+  // mints a derivative for each one it serves. The two must agree exactly:
+  // a width CardImage asks for that the config lacks is refused (and falls
+  // back to the full image), a width the config lists that nothing asks for
+  // is one more derivative anyone could request.
+  test("next.config.ts lists exactly the widths and quality CardImage uses", async () => {
+    const { default: config } = await import("../../next.config");
+    const listed = [...(config.images?.imageSizes ?? []), ...(config.images?.deviceSizes ?? [])].sort((a, b) => a - b);
+    expect(listed).toEqual(Object.values(CARD_IMAGE_WIDTHS).sort((a, b) => a - b));
+    expect(config.images?.qualities).toEqual([CARD_IMAGE_QUALITY]);
+    expect(config.images?.localPatterns).toEqual([{ pathname: "/api/card-image/**", search: "" }]);
+    expect(config.images?.remotePatterns).toEqual([]);
+  });
+});
+
+describe("cardImageSrc", () => {
+  const official = "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png";
+  const proxied = "/api/card-image/en/OP01-001_p1.png";
+  const resized = optimizedImageUrl(proxied, "tile");
+
+  test("tries the resize, then the full image, then gives up to the text face", () => {
+    expect(cardImageSrc(official, "tile", new Set())).toBe(resized);
+    expect(cardImageSrc(official, "tile", new Set([resized]))).toBe(proxied);
+    expect(cardImageSrc(official, "tile", new Set([resized, proxied]))).toBeNull();
+  });
+
+  test("without a size the full image is the only try", () => {
+    expect(cardImageSrc(official, undefined, new Set())).toBe(proxied);
+    expect(cardImageSrc(official, undefined, new Set([proxied]))).toBeNull();
+  });
+
+  test("an image the proxy refuses never reaches the optimizer", () => {
+    expect(cardImageSrc(null, "tile", new Set())).toBeNull();
+    expect(cardImageSrc("https://example.com/x.png", "tile", new Set())).toBeNull();
   });
 });

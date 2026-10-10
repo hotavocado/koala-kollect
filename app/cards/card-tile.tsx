@@ -9,6 +9,7 @@ export function CardTile({ card }: { card: BrowseCard }) {
   const face = (
     <CardImage
       imageUrl={card.imageUrl}
+      size="tile"
       alt={label}
       className="aspect-[63/88] w-full rounded-md bg-layer-2 object-cover"
       fallback={

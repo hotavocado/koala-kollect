@@ -164,6 +164,7 @@ function PrintingRow({ cardKey, label, printing: p, site }: { cardKey: string; l
     >
       <CardImage
         imageUrl={p.imageUrl}
+        size="thumb"
         alt={`${label}, ${VARIANT_LABEL[p.variant]}`}
         className="aspect-[63/88] w-16 shrink-0 rounded bg-layer-2 object-cover xs:w-20"
         fallback={<ThumbFace text={VARIANT_LABEL[p.variant]} />}

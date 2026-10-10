@@ -137,6 +137,7 @@ function ResultRow({ hit }: { hit: SearchHit }) {
     >
       <CardImage
         imageUrl={hit.imageUrl}
+        size="finder"
         alt=""
         className="aspect-[63/88] w-12 shrink-0 rounded bg-layer-2 object-cover"
         fallback={<span className="aspect-[63/88] w-12 shrink-0 rounded bg-layer-2" />}
