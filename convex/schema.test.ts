@@ -10,7 +10,7 @@ import schema from "./schema";
 // everywhere.
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
-const OFFICIAL = ["en", "asia-en", "jp", "tc", "cn"] as const;
+const OFFICIAL = ["en", "jp", "cn"] as const;
 const TCGCSV_ONLY = ["normal", "foil", "stamped"] as const;
 
 function printing(site: string, variant: string) {

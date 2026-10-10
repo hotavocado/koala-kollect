@@ -2,9 +2,10 @@
 // send Cross-Origin-Resource-Policy: same-site, so a browser refuses them on
 // any other site; fetched server-side, the header does not apply.
 //
-// Only card images on the four official hosts pass, so the route is not an
-// open proxy. Every printing in the data uses exactly this pattern (measured
-// 2026-10-08: 19,669 rows, four hosts, one path, .png, no query).
+// Only card images on the two official hosts (www for jp, en) pass, so the
+// route is not an open proxy. Every printing in the data uses exactly this
+// pattern (measured 2026-10-08, before two Asia sites were retired: 19,669
+// rows, one path, .png, no query).
 //
 // tcgcsv prints (stamped, DON) have only TCGplayer's image, so its CDN passes
 // too. Measured 2026-10-10 over data main 0ceb11c: 783 of 862 tcgcsv rows
@@ -21,8 +22,6 @@
 const HOSTS = {
   www: "www.onepiece-cardgame.com",
   en: "en.onepiece-cardgame.com",
-  "asia-en": "asia-en.onepiece-cardgame.com",
-  "asia-tc": "asia-tc.onepiece-cardgame.com",
 } as const;
 
 const PATH = "/images/cardlist/card/";

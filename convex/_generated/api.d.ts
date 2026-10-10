@@ -15,7 +15,6 @@ import type * as cardSetsCore from "../cardSetsCore.js";
 import type * as cards from "../cards.js";
 import type * as crons from "../crons.js";
 import type * as dataSync from "../dataSync.js";
-import type * as siteSweep from "../siteSweep.js";
 import type * as syncCore from "../syncCore.js";
 
 import type {
@@ -32,7 +31,6 @@ declare const fullApi: ApiFromModules<{
   cards: typeof cards;
   crons: typeof crons;
   dataSync: typeof dataSync;
-  siteSweep: typeof siteSweep;
   syncCore: typeof syncCore;
 }>;
 
