@@ -26,8 +26,7 @@ export default function Home() {
             Browse the cards
           </Link>
           <p className="max-w-xl text-sm text-muted-foreground">
-            English, Japanese and Chinese printings, read from the official card lists. Free and
-            open source.
+            Free and open source. Built and maintained by the OP TCG community
           </p>
         </div>
       </main>
