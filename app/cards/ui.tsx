@@ -120,8 +120,8 @@ export function confidenceShown<C extends string>(source: string, confidence: C)
 // Every printing of the card is on cn's list and no other site's (P-122 to
 // P-134, Special Card Set vol.2). Such a card has only Chinese text and no
 // official page to link to, and the card page says why.
-export function cnOnly(regions: { site: string }[]): boolean {
-  return regions.length > 0 && regions.every((r) => r.site === "cn");
+export function cnOnly(regions: { language: string }[]): boolean {
+  return regions.length > 0 && regions.every((r) => r.language === "cn");
 }
 
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {

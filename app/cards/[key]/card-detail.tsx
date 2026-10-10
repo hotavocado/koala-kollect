@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
-import type { CardDetail, CardPrinting, CardRegion } from "@/convex/cards";
+import type { CardDetail, CardPrinting } from "@/convex/cards";
 import { capitalize, CardFace, OfficialLink, SITE_LABEL, VARIANT_LABEL } from "../printing";
 import { cardLabel, cnOnly, ColorDots, Notice } from "../ui";
 
@@ -127,10 +127,10 @@ function Detail({ card }: { card: CardDetail }) {
           <p className="text-sm text-muted-foreground">No printings of this card are listed yet.</p>
         )}
         {card.regions.map((region) => (
-          <div key={region.site} className="flex flex-col gap-3">
+          <div key={region.language} className="flex flex-col gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3 className="text-lg font-semibold">
-                {SITE_LABEL[region.site]}{" "}
+                {SITE_LABEL[region.language]}{" "}
                 <span className="font-normal text-muted-foreground">{region.printings.length}</span>
               </h3>
               {region.listUrl && (
@@ -142,7 +142,7 @@ function Detail({ card }: { card: CardDetail }) {
             <ul className="flex flex-col gap-3">
               {region.printings.map((p) => (
                 <li key={p.key}>
-                  <PrintingRow cardKey={card.key} label={label} printing={p} site={region.site} />
+                  <PrintingRow cardKey={card.key} label={label} printing={p} />
                 </li>
               ))}
             </ul>
@@ -155,7 +155,7 @@ function Detail({ card }: { card: CardDetail }) {
 
 // One print, linked to its own page. The row shows the print's own image and
 // what it is; its listings and origin claims live on the print page.
-function PrintingRow({ cardKey, label, printing: p, site }: { cardKey: string; label: string; printing: CardPrinting; site: CardRegion["site"] }) {
+function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: string; printing: CardPrinting }) {
   const origins = [...new Set(p.claims.map((c) => c.distribution?.name).filter(Boolean))];
   return (
     <Link
@@ -171,7 +171,9 @@ function PrintingRow({ cardKey, label, printing: p, site }: { cardKey: string; l
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-xs text-muted-foreground">
-          {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds].join(" · ")}
+          {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds, p.site === "tcgcsv" ? "from TCGplayer" : null]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
 
         {/* The provenance string is the card list's own words, shown verbatim. */}
@@ -179,7 +181,7 @@ function PrintingRow({ cardKey, label, printing: p, site }: { cardKey: string; l
           <p className="break-words text-base font-medium">{p.sourceText}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {site === "tcgcsv"
+            {p.site === "tcgcsv"
               ? "TCGplayer lists no source for this printing."
               : "The card list prints no source for this printing."}
           </p>

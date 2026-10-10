@@ -82,13 +82,14 @@ describe("cards.detail", () => {
       imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png",
       officialUrl: "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001",
     });
-    expect(card?.regions.map((r) => [r.site, r.listUrl])).toEqual([
+    expect(card?.regions.map((r) => [r.language, r.listUrl])).toEqual([
       ["en", "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
     ]);
     expect(card?.regions[0].printings.find((p) => p.key === "prt_000000000001")).toEqual({
       key: "prt_000000000001",
       rarity: "L",
       variant: "parallel",
+      site: "en",
       imageUrl: "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001_p1.png",
       sourceText: "-ROMANCE DAWN- [OP-01]",
       imageIds: ["OP01-001_p1"],
@@ -141,7 +142,9 @@ describe("cards.detail", () => {
       imageUrl: "https://tcgplayer-cdn.tcgplayer.com/product/512345_in_1000x1000.jpg",
     });
     expect(card?.regions).toHaveLength(1);
-    expect(card?.regions[0]).toMatchObject({ site: "tcgcsv", listUrl: null });
+    // TCGplayer is not a language: tcgcsv's only One Piece category is
+    // English, so a DON's printings read under English.
+    expect(card?.regions[0]).toMatchObject({ language: "en", listUrl: null });
     // The located printings read in variant order. The contract's fourth
     // printing has no locator, so its place among the foils is only the empty
     // image id sorting first; it is checked on its own, not by position.
@@ -190,7 +193,7 @@ describe("cards.detail", () => {
       await ctx.db.insert("printings", printing("prt_00000000000d", "en", "base"));
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
-    expect(card?.regions.map((r) => [r.site, r.printings.map((p) => p.key)])).toEqual([
+    expect(card?.regions.map((r) => [r.language, r.printings.map((p) => p.key)])).toEqual([
       // The fixture's own en printings ride along. With no locator, a printing
       // ties on image id and falls back to key, so the unlocated parallels
       // prt_..2 and prt_..3 read before prt_..1 and its OP01-001_p1.
@@ -209,7 +212,7 @@ describe("cards.detail", () => {
       await ctx.db.insert("printings", printing("prt_00000000000c", "jp", "base"));
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
-    expect(card?.regions.map((r) => [r.site, r.listUrl])).toEqual([
+    expect(card?.regions.map((r) => [r.language, r.listUrl])).toEqual([
       ["en", "https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
       ["jp", "https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001"],
       ["cn", null],
@@ -253,7 +256,7 @@ describe("cards.detail", () => {
       }
     });
     const card = await t.query(api.cards.detail, { key: ZORO });
-    const jp = card?.regions.find((r) => r.site === "jp");
+    const jp = card?.regions.find((r) => r.language === "jp");
     expect(jp?.printings.map((p) => p.imageIds[0])).toEqual(["OP01-001_p2", "OP01-001_p3", "OP01-001_p10"]);
   });
 
@@ -436,34 +439,56 @@ describe("a stamped print", () => {
     return t;
   }
 
-  test("reads last, under TCGplayer, with its product link, and leaves the card's face alone", async () => {
+  test("reads under English after the official en prints, with its product link, and leaves the card's face alone", async () => {
     const before = await (await seeded()).query(api.cards.detail, { key: ZORO });
     const t = await seededWithStamp();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("printings", printing("prt_00000000000b", "jp", "base"));
+    });
     const card = await t.query(api.cards.detail, { key: ZORO });
-    expect(card?.regions.map((r) => r.site)).toEqual([...(before?.regions.map((r) => r.site) ?? []), "tcgcsv"]);
-    expect(card?.regions.at(-1)).toMatchObject({
+    // No TCGplayer heading: the stamp joins English, last within it, and jp
+    // still follows English.
+    const en = before?.regions.find((r) => r.language === "en")?.printings.map((p) => p.key) ?? [];
+    expect(en.length).toBeGreaterThan(0);
+    expect(card?.regions.map((r) => [r.language, r.printings.map((p) => p.key)])).toEqual([
+      ["en", [...en, STAMPED]],
+      ["jp", ["prt_00000000000b"]],
+    ]);
+    // English keeps the official list's link for the card.
+    expect(card?.regions[0].listUrl).toBe("https://en.onepiece-cardgame.com/cardlist/?freewords=OP01-001");
+    expect(card?.regions[0].printings.at(-1)).toMatchObject({
+      key: STAMPED,
       site: "tcgcsv",
-      listUrl: null,
-      printings: [
-        {
-          key: STAMPED,
-          variant: "stamped",
-          imageIds: ["600001:Normal"],
-          tcgplayerUrl: "https://www.tcgplayer.com/product/600001",
-        },
-      ],
+      variant: "stamped",
+      imageIds: ["600001:Normal"],
+      tcgplayerUrl: "https://www.tcgplayer.com/product/600001",
     });
     // The card keeps its official base image; a stamp is never the face.
     expect(before?.imageUrl).toBeTruthy();
     expect(card?.imageUrl).toBe(before?.imageUrl);
   });
 
+  test("English holding only TCGplayer's printings links to no official list", async () => {
+    const t = await seededWithStamp();
+    await t.run(async (ctx) => {
+      for (const p of await ctx.db.query("printings").withIndex("by_card", (q) => q.eq("card_key", ZORO)).collect()) {
+        if (p.site === "en") await ctx.db.delete(p._id);
+      }
+      await ctx.db.insert("printings", printing("prt_00000000000b", "jp", "base"));
+    });
+    const card = await t.query(api.cards.detail, { key: ZORO });
+    expect(card?.regions.map((r) => [r.language, r.listUrl, r.printings.map((p) => p.key)])).toEqual([
+      ["en", null, [STAMPED]],
+      ["jp", "https://www.onepiece-cardgame.com/cardlist/?freewords=OP01-001", ["prt_00000000000b"]],
+    ]);
+  });
+
   test("its print page reads the same printing the card page lists", async () => {
     const t = await seededWithStamp();
     const print = await t.query(api.cards.print, { cardKey: ZORO, printKey: STAMPED });
     const card = await t.query(api.cards.detail, { key: ZORO });
-    expect(print).toMatchObject({ site: "tcgcsv", listUrl: null, printing: { variant: "stamped" } });
-    expect(print?.printing).toEqual(card?.regions.at(-1)?.printings[0]);
+    expect(print).toMatchObject({ site: "tcgcsv", language: "en", listUrl: null, printing: { variant: "stamped" } });
+    expect(print?.printing).toEqual(card?.regions[0].printings.at(-1));
   });
 });
 
@@ -489,6 +514,7 @@ describe("cards.print", () => {
     expect(print).toMatchObject({
       card: { key: DON, number: null, donDesign: "PRB-01:don-card-monkey-d-luffy", category: "don", name: "DON!! Card (Monkey.D.Luffy)" },
       site: "tcgcsv",
+      language: "en",
       listUrl: null,
       printing: {
         variant: "gold",

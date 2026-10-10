@@ -281,9 +281,20 @@ export const lastSync = query({
 // the site that lists it, each with its verbatim provenance string, the series
 // pages it sits under, and the claims about where it was handed out.
 
-// Region order on the page: English first, as on the browse page, then the
-// other official sites, then tcgcsv: DON printings, and the stamped Release
-// Event prints no official list carries.
+// The card page groups printings by language, not by site. tcgcsv is a
+// TCGplayer catalogue, not a language, and its only One Piece category is
+// English, so its DON printings and the stamped Release Event prints no
+// official list carries sit under English, after the official en printings.
+export type Language = Exclude<Doc<"printings">["site"], "tcgcsv">;
+const LANGUAGE_OF: Record<Doc<"printings">["site"], Language> = {
+  en: "en",
+  jp: "jp",
+  cn: "cn",
+  tcgcsv: "en",
+};
+// Language order on the page: English first, as on the browse page.
+const LANGUAGE_ORDER: Language[] = ["en", "jp", "cn"];
+// Within a language, the official list's printings before TCGplayer's.
 const REGION_ORDER: Doc<"printings">["site"][] = ["en", "jp", "cn", "tcgcsv"];
 const VARIANT_ORDER: Doc<"printings">["variant"][] = [
   "base",
@@ -338,6 +349,8 @@ export type CardPrinting = {
   key: string;
   rarity: string;
   variant: Doc<"printings">["variant"];
+  // The site that lists this print. Under English it may be tcgcsv.
+  site: Doc<"printings">["site"];
   imageUrl: string | null; // null on a tcgcsv printing TCGplayer has no image for yet
   sourceText: string; // verbatim; empty when the site prints none
   imageIds: string[];
@@ -348,9 +361,9 @@ export type CardPrinting = {
 };
 
 export type CardRegion = {
-  site: Doc<"printings">["site"];
-  // This site's official list entry for the card, or null where the site has
-  // no searchable list (cn, tcgcsv) or the card has no number (DON).
+  language: Language;
+  // This language's official list entry for the card, or null where the site
+  // has no searchable list (cn) or the card has no number (DON).
   listUrl: string | null;
   printings: CardPrinting[];
 };
@@ -465,6 +478,7 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
     key: p.key,
     rarity: p.rarity,
     variant: p.variant,
+    site: p.site,
     imageUrl: p.image_url ?? null,
     sourceText: p.source_text,
     imageIds: locators.map((l) => l.image_id).sort(),
@@ -491,6 +505,7 @@ export type PrintDetail = {
     name: string | null;
   };
   site: Doc<"printings">["site"];
+  language: Language;
   listUrl: string | null;
   printing: CardPrinting;
 };
@@ -528,6 +543,7 @@ export const print = query({
         name: pickName(observations),
       },
       site: p.site,
+      language: LANGUAGE_OF[p.site],
       listUrl: listUrl(p.site, card.number),
       printing,
     };
@@ -562,6 +578,7 @@ export const detail = query({
     // random.
     loaded.sort(
       (a, b) =>
+        rank(LANGUAGE_ORDER, LANGUAGE_OF[a.site]) - rank(LANGUAGE_ORDER, LANGUAGE_OF[b.site]) ||
         rank(REGION_ORDER, a.site) - rank(REGION_ORDER, b.site) ||
         rank(VARIANT_ORDER, a.printing.variant) - rank(VARIANT_ORDER, b.printing.variant) ||
         (a.printing.imageIds[0] ?? "").localeCompare(b.printing.imageIds[0] ?? "", "en", { numeric: true }) ||
@@ -570,8 +587,12 @@ export const detail = query({
     const regions: CardRegion[] = [];
     for (const { site, printing } of loaded) {
       const last = regions[regions.length - 1];
-      if (last?.site === site) last.printings.push(printing);
-      else regions.push({ site, listUrl: listUrl(site, card.number), printings: [printing] });
+      const language = LANGUAGE_OF[site];
+      if (last?.language === language) last.printings.push(printing);
+      // The link is the first printing's site: an official one when the
+      // language has any (they sort first), so English holding only
+      // TCGplayer's printings gets no official link.
+      else regions.push({ language, listUrl: listUrl(site, card.number), printings: [printing] });
     }
 
     const obs = pickObservation(observations);

@@ -91,12 +91,12 @@ describe("quantityNoteShown", () => {
 describe("cnOnly", () => {
   // P-122 to P-134 (Special Card Set vol.2) are listed by cn and no other site.
   test("a card whose every printing is on cn", () => {
-    expect(cnOnly([{ site: "cn" }])).toBe(true);
+    expect(cnOnly([{ language: "cn" }])).toBe(true);
   });
 
   test("a card cn shares with any other site", () => {
-    expect(cnOnly([{ site: "jp" }, { site: "cn" }])).toBe(false);
-    expect(cnOnly([{ site: "en" }])).toBe(false);
+    expect(cnOnly([{ language: "jp" }, { language: "cn" }])).toBe(false);
+    expect(cnOnly([{ language: "en" }])).toBe(false);
   });
 
   test("a card with no printings yet is not cn-only", () => {

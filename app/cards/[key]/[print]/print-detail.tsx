@@ -36,7 +36,7 @@ function ConnectedPrint({ cardKey, printKey }: { cardKey: string; printKey: stri
   return <Print print={print} />;
 }
 
-function Print({ print: { card, site, listUrl, printing: p } }: { print: PrintDetail }) {
+function Print({ print: { card, site, language, listUrl, printing: p } }: { print: PrintDetail }) {
   const label = cardLabel(card);
   return (
     <article className="flex flex-col gap-10">
@@ -60,7 +60,8 @@ function Print({ print: { card, site, listUrl, printing: p } }: { print: PrintDe
               <span>{[card.number, p.rarity, VARIANT_LABEL[p.variant]].filter(Boolean).join(" · ")}</span>
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {SITE_LABEL[site]}
+              {SITE_LABEL[language]}
+              {site === "tcgcsv" && " · from TCGplayer"}
               {p.imageIds.length > 0 && ` · ${p.imageIds.join(" · ")}`}
             </p>
           </div>
@@ -78,7 +79,7 @@ function Print({ print: { card, site, listUrl, printing: p } }: { print: PrintDe
 
           <div className="flex flex-col gap-1 text-sm">
             {p.tcgplayerUrl && <OfficialLink href={p.tcgplayerUrl}>TCGplayer listing</OfficialLink>}
-            {listUrl && <OfficialLink href={listUrl}>On the {SITE_LABEL[site]} card list</OfficialLink>}
+            {listUrl && <OfficialLink href={listUrl}>On the {SITE_LABEL[language]} card list</OfficialLink>}
           </div>
 
           <div className="rounded-lg bg-layer-1 p-4">
