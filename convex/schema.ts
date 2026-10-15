@@ -101,6 +101,9 @@ const printingFields = {
   // refuses reprint there).
   number_token: v.optional(v.string()),
   image_token: v.optional(v.string()),
+  // Perceptual hash of the printing's art region, written by the data repo's
+  // hash job. Evidence for design matching only: never an identity.
+  image_hash: v.optional(v.string()),
   first_seen_at: v.string(),
 };
 
@@ -264,6 +267,11 @@ export default defineSchema({
     name: v.string(),
     name_native: v.optional(v.string()),
     source_url: v.optional(v.string()),
+    // The stamp colour of the prize pack, set at review off the competition
+    // page that names it (gold, black, ...). A design's stamp colour is read
+    // through its printings' distributions, never stored on the design.
+    stamp_color: v.optional(v.union(v.string(), v.null())),
+    stamp_color_source: v.optional(v.union(v.string(), v.null())), // that competition page's URL
   })
     .index("by_key", ["key"])
     .index("by_region", ["region"]),
@@ -307,19 +315,54 @@ export default defineSchema({
     .index("by_printing", ["printing_key"])
     .index("by_distribution", ["distribution_key"]),
 
-  // Same art across sites. Matching work with review, never derived from ids.
-  printing_links: defineTable({
-    key: v.string(), // {printing_a}={printing_b}
-    printing_a: v.string(),
-    printing_b: v.string(),
-    method: v.union(v.literal("manual"), v.literal("image_hash"), v.literal("number_and_distribution")),
+  // A design is one art of a card: the same art, stamp and stamp colour in any
+  // language. Minted and reviewed in the data repo, never derived from ids.
+  // Its printings join through printing_designs at read time.
+  designs: defineTable({
+    key: v.string(), // dsn_xxxxxxxxxxxx
+    card_key: v.string(),
+    stamp: v.optional(v.union(v.string(), v.null())), // the stamp text verbatim
+    // Set at review where the exclusive rule reads wrong (a release lag).
+    exclusive_override: v.optional(v.union(v.boolean(), v.null())),
+    reviewed_by: v.optional(v.string()),
+    reviewed_at: v.optional(v.string()),
+  })
+    .index("by_key", ["key"])
+    .index("by_card", ["card_key"]),
+
+  // Which design a printing is. At most one row per printing; a printing with
+  // none is unreviewed and stays out of design counts and the exclusive test.
+  printing_designs: defineTable({
+    key: v.string(), // the printing's key
+    printing_key: v.string(),
+    design_key: v.string(),
+    method: v.union(v.literal("manual"), v.literal("image_hash"), v.literal("suffix_and_rarity")),
     confidence,
     reviewed_by: v.optional(v.string()),
     reviewed_at: v.optional(v.string()),
   })
     .index("by_key", ["key"])
-    .index("by_printing_a", ["printing_a"])
-    .index("by_printing_b", ["printing_b"]),
+    .index("by_printing", ["printing_key"])
+    .index("by_design", ["design_key"]),
+
+  // One set across every language it was printed in (OP-09 is OPC-09 in cn).
+  // A set's instance in one language is its products on that site, and its
+  // title in a language is read off those products.
+  // Uncoded promo and event packs share one set keyed P.
+  sets: defineTable({
+    key: v.string(), // equal to code
+    code: v.string(), // the code in its global form: OP-09, EB-04, PRB-02, P
+  }).index("by_key", ["key"]),
+
+  // Products to sets, many to many: en OP14-EB04 holds cards of two sets.
+  product_sets: defineTable({
+    key: v.string(), // {product_key}@{set_key}
+    product_key: v.string(),
+    set_key: v.string(),
+  })
+    .index("by_key", ["key"])
+    .index("by_product", ["product_key"])
+    .index("by_set", ["set_key"]),
 
   // Which set page a DON card belongs on. DON carry no set in their number, so
   // the data repo maps each one: by its TCGplayer group, by an override when
