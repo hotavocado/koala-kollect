@@ -1,7 +1,9 @@
 import type { Doc } from "@/convex/_generated/dataModel";
+import { SITE_LOCALE } from "@/convex/lang";
 import type { Dict } from "@/lib/i18n/en";
 import { fill } from "@/lib/i18n/format";
 import { useI18n } from "@/lib/i18n/client";
+import { LOCALE_TAG, type Locale } from "@/lib/i18n/locales";
 
 // Pieces the browse grid and the card page share.
 
@@ -110,6 +112,25 @@ export function confidenceShown<C extends string>(source: string, confidence: C)
 // official page to link to, and the card page says why.
 export function cnOnly(regions: { language: string }[]): boolean {
   return regions.length > 0 && regions.every((r) => r.language === "cn");
+}
+
+type TextSite = Doc<"card_observations">["site"];
+
+// The lang attribute for text read off a site's card list, so a Japanese or
+// Chinese name renders in its own script's glyphs on any page.
+export function siteTag(site: TextSite | null): string | undefined {
+  return site ? LOCALE_TAG[SITE_LOCALE[site]] : undefined;
+}
+
+// Whether a site's text is in another language than the page's: always on ko
+// and fr, which have no card list of their own, and on en for a JP-only card.
+export function foreignText(site: TextSite | null, lang: Locale): boolean {
+  return site !== null && SITE_LOCALE[site] !== lang;
+}
+
+// "Card text in Japanese." TCGplayer's catalogue is English.
+export function textInLine(site: TextSite, t: Dict): string {
+  return fill(t.card.textIn, { language: t.siteLanguage[site === "tcgcsv" ? "en" : site] });
 }
 
 export function Notice({ title, children }: { title: string; children: React.ReactNode }) {

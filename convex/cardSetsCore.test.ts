@@ -109,6 +109,29 @@ describe("groupProducts", () => {
     expect(op13.title).toBe("Carrying on His Will");
   });
 
+  test("a title in each language, from that site's own product", () => {
+    const [op13] = groupProducts([
+      product("en", "OP-13", "BOOSTER PACK -CARRYING ON HIS WILL- [OP-13]", "booster"),
+      product("jp", "OP-13", "ブースターパック 受け継がれる意志【OP-13】", "booster"),
+      product("cn", "OP-13", "补充包 继承的意志【OPC-13】", "booster"),
+    ]);
+    expect(op13.titles).toEqual({
+      en: "Carrying on His Will",
+      jp: "ブースターパック 受け継がれる意志",
+      cn: "补充包 继承的意志",
+    });
+    // No en product: name_en is the English title, as it is the title.
+    const [eb04] = groupProducts([
+      { ...product("jp", "EB-04", "エクストラブースター EGGHEAD CRISIS【EB-04】", "extra"), name_en: "EGGHEAD CRISIS" },
+    ]);
+    expect(eb04.titles).toEqual({ en: "EGGHEAD CRISIS", jp: "エクストラブースター EGGHEAD CRISIS" });
+    // jp only: no English title, and the title is jp's.
+    const st99 = groups.find((g) => g.slug === "st-99");
+    expect(st99?.titles).toEqual({ jp: "スタートデッキ テスト" });
+    // A bucket's English title is ours; jp's is its own.
+    expect(groups.find((g) => g.slug === "promo")?.titles).toEqual({ en: "Promotion cards", jp: "プロモーションカード" });
+  });
+
   test("code-less products group across sites by kind", () => {
     const promo = groups.find((g) => g.slug === "promo");
     expect(promo).toMatchObject({ code: null, kind: "promo", title: "Promotion cards" });

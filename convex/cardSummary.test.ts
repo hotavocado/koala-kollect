@@ -87,10 +87,11 @@ describe("cardSummary.chain", () => {
     expect(cards.every((c) => c.summary !== undefined)).toBe(true);
     expect(cards.find((c) => c.key === first.key)?.summary).toEqual({
       name: "Nami",
+      names: { en: "Nami" },
       printings: 2,
       image_url: "https://example.test/en/prt_000000000001.png",
     });
-    expect(cards.find((c) => c.key === card(2).key)?.summary).toEqual({ name: null, printings: 0, image_url: null });
+    expect(cards.find((c) => c.key === card(2).key)?.summary).toEqual({ name: null, names: {}, printings: 0, image_url: null });
 
     const syncId = await t.run(async (ctx) =>
       ctx.db.insert("data_syncs", { data_commit: "a".repeat(40), manifest_sha256: "b".repeat(64), started_at: T, status: "ok" }),
@@ -148,6 +149,62 @@ describe("browseRow", () => {
     });
     const page = await t.query(api.cards.browse, { paginationOpts: { numItems: 24, cursor: null } });
     expect(page.page[0]).toMatchObject({ name: "Live", printings: 1, imageUrl: "https://example.test/en/prt_000000000001.png" });
+  });
+});
+
+describe("summary names", () => {
+  const summary = { name: "Nami", printings: 1, image_url: null };
+  const browse = (t: ReturnType<typeof convexTest>, lang: "en" | "ja" | "zh") =>
+    t.query(api.cards.browse, { paginationOpts: { numItems: 24, cursor: null }, lang });
+
+  test("the chain stores each site's current name", async () => {
+    const t = convexTest(schema, modules);
+    const c = card(1);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", c);
+      await ctx.db.insert("card_observations", observation(c.key, "Nami"));
+      await ctx.db.insert("card_observations", {
+        ...observation(c.key, "ナミ"),
+        key: `${c.key}:jp:0000000000000002`,
+        site: "jp",
+        lang: "ja",
+      });
+      // An errata'd jp name is not the current one.
+      await ctx.db.insert("card_observations", {
+        ...observation(c.key, "ナミ (old)"),
+        key: `${c.key}:jp:0000000000000003`,
+        site: "jp",
+        lang: "ja",
+        superseded_at: T,
+      });
+    });
+    await runChain(t);
+    const stored = await t.run(async (ctx) => ctx.db.query("cards").withIndex("by_key", (q) => q.eq("key", c.key)).unique());
+    expect(stored?.summary?.names).toEqual({ en: "Nami", jp: "ナミ" });
+  });
+
+  test("a browse row picks the reader's language from them, else English", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", { ...card(1), summary: { ...summary, names: { en: "Nami", jp: "ナミ" } } });
+    });
+    expect((await browse(t, "ja")).page[0]).toMatchObject({ name: "ナミ", nameSite: "jp" });
+    expect((await browse(t, "en")).page[0]).toMatchObject({ name: "Nami", nameSite: "en" });
+    // No cn name: a Chinese reader gets English before Japanese.
+    expect((await browse(t, "zh")).page[0]).toMatchObject({ name: "Nami", nameSite: "en" });
+  });
+
+  test("a summary stored before names reads its one name, language unknown, until the chain rewrites it", async () => {
+    const t = convexTest(schema, modules);
+    const c = card(1);
+    await t.run(async (ctx) => {
+      // The same name, count and image the chain will compute: only names differ.
+      await ctx.db.insert("cards", { ...c, summary: { ...summary, printings: 0 } });
+      await ctx.db.insert("card_observations", observation(c.key, "Nami"));
+    });
+    expect((await browse(t, "ja")).page[0]).toMatchObject({ name: "Nami", nameSite: null });
+    await runChain(t);
+    expect((await browse(t, "ja")).page[0]).toMatchObject({ name: "Nami", nameSite: "en" });
   });
 });
 

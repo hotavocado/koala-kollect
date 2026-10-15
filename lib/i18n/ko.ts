@@ -89,6 +89,7 @@ const ko = {
     trigger: "트리거",
     textFromTcgplayer: "이름은 TCGplayer 카탈로그에서 가져왔습니다.",
     textFrom: "텍스트는 {site} 카드 리스트에서 가져왔습니다.",
+    textIn: "카드 텍스트는 {language}입니다.",
     noPrintings: "이 카드의 프린트가 아직 등록되지 않았습니다.",
     onSiteList: "이 사이트의 카드 리스트",
     fromTcgplayer: "TCGplayer 제공",

@@ -7,7 +7,7 @@ import { CardImage } from "../card-image";
 import type { CardDetail, CardPrinting } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
 import { CardFace, OfficialLink } from "../printing";
-import { cardLabel, cnOnly, ColorDots, Notice } from "../ui";
+import { cardLabel, cnOnly, ColorDots, foreignText, Notice, siteTag, textInLine } from "../ui";
 
 // Same guard as the browse page: the Convex hooks throw without a deployment.
 export function CardDetailView({ cardKey }: { cardKey: string }) {
@@ -19,8 +19,8 @@ export function CardDetailView({ cardKey }: { cardKey: string }) {
 }
 
 function ConnectedDetail({ cardKey }: { cardKey: string }) {
-  const { t, href } = useI18n();
-  const card = useQuery(api.cards.detail, { key: cardKey });
+  const { t, href, lang } = useI18n();
+  const card = useQuery(api.cards.detail, { key: cardKey, lang });
   if (card === undefined) return <p className="text-sm text-muted-foreground">{t.cards.loadingCard}</p>;
   if (card === null) {
     return (
@@ -36,8 +36,9 @@ function ConnectedDetail({ cardKey }: { cardKey: string }) {
 }
 
 function Detail({ card }: { card: CardDetail }) {
-  const { t, fill, plural } = useI18n();
+  const { t, lang, fill, plural } = useI18n();
   const label = cardLabel({ ...card, name: card.text?.name ?? null }, t);
+  const textTag = siteTag(card.text?.site ?? null);
   const total = card.regions.reduce((n, r) => n + r.printings.length, 0);
   const stats = (
     [
@@ -59,7 +60,9 @@ function Detail({ card }: { card: CardDetail }) {
         />
         <div className="flex min-w-0 flex-col gap-4">
           <div>
-            <h1 className="text-3xl font-semibold">{label}</h1>
+            <h1 lang={textTag} className="text-3xl font-semibold">
+              {label}
+            </h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
               <ColorDots colors={card.colors} />
               <span>{[card.number, t.category[card.category]].filter(Boolean).join(" · ")}</span>
@@ -95,19 +98,25 @@ function Detail({ card }: { card: CardDetail }) {
           )}
 
           {card.text?.effect && (
-            <p className="whitespace-pre-line rounded-lg bg-layer-1 p-4 text-sm">{card.text.effect}</p>
+            <p lang={textTag} className="whitespace-pre-line rounded-lg bg-layer-1 p-4 text-sm">
+              {card.text.effect}
+            </p>
           )}
           {card.text?.trigger && (
             <p className="whitespace-pre-line rounded-lg bg-layer-1 p-4 text-sm">
               <span className="font-medium">{t.card.trigger} </span>
-              {card.text.trigger}
+              <span lang={textTag}>{card.text.trigger}</span>
             </p>
           )}
+          {/* One line under the text: its language when that is not the
+              page's, else where it was read. The language says the source too. */}
           {card.text && (
             <p className="text-xs text-muted-foreground">
-              {card.text.site === "tcgcsv"
-                ? t.card.textFromTcgplayer
-                : fill(t.card.textFrom, { site: t.siteLanguage[card.text.site] })}
+              {foreignText(card.text.site, lang)
+                ? textInLine(card.text.site, t)
+                : card.text.site === "tcgcsv"
+                  ? t.card.textFromTcgplayer
+                  : fill(t.card.textFrom, { site: t.siteLanguage[card.text.site] })}
             </p>
           )}
         </div>

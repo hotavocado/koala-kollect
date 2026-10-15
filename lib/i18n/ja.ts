@@ -90,6 +90,7 @@ const ja = {
     trigger: "トリガー",
     textFromTcgplayer: "名前はTCGplayerのカタログより。",
     textFrom: "テキストは{site}のカードリストより。",
+    textIn: "カードテキストは{language}です。",
     noPrintings: "このカードのプリントはまだ登録されていません。",
     onSiteList: "このサイトのカードリストに掲載",
     fromTcgplayer: "TCGplayerより",

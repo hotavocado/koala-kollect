@@ -87,6 +87,7 @@ const zh = {
     trigger: "触发",
     textFromTcgplayer: "名称来自 TCGplayer 商品目录。",
     textFrom: "文本来自{site}卡表。",
+    textIn: "卡牌文本为{language}。",
     noPrintings: "尚未收录此卡的印刷版本。",
     onSiteList: "收录于本站卡表",
     fromTcgplayer: "来自 TCGplayer",

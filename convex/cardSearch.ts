@@ -3,6 +3,7 @@ import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { browseRow, type BrowseCard } from "./cards";
 import { MIN_NAME_QUERY, parseCardNumber, SEARCH_LIMIT } from "./cardSearchCore";
+import { locale, type Locale } from "./lang";
 
 // Find a card by number or name. Reads the same mirror tables as the browse
 // page and never writes.
@@ -24,8 +25,9 @@ export type SearchResult = {
 };
 
 export const search = query({
-  args: { q: v.string() },
-  handler: async (ctx, { q }): Promise<SearchResult> => {
+  // Names match in every language whatever lang is; lang picks the name shown.
+  args: { q: v.string(), lang: v.optional(locale) },
+  handler: async (ctx, { q, lang = "en" }): Promise<SearchResult> => {
     const text = q.trim();
     if (!text) return { kind: "empty", hits: [] };
 
@@ -34,7 +36,7 @@ export const search = query({
       const cards = await byNumber(ctx, asNumber.exact, asNumber.prefix);
       // A number-shaped query that matches no number may still be a name.
       if (cards.length > 0 || text.length < MIN_NAME_QUERY) {
-        return { kind: "number", hits: await hits(ctx, cards, new Map()) };
+        return { kind: "number", hits: await hits(ctx, cards, lang, new Map()) };
       }
     }
     const matches = await ctx.db
@@ -66,6 +68,7 @@ export const search = query({
       hits: await hits(
         ctx,
         cards.filter((c): c is Doc<"cards"> => c !== null),
+        lang,
         matched,
       ),
     };
@@ -100,10 +103,15 @@ async function byNumber(ctx: QueryCtx, exact: string[], prefix: string): Promise
   return out;
 }
 
-async function hits(ctx: QueryCtx, cards: Doc<"cards">[], matched: Map<string, string>): Promise<SearchHit[]> {
+async function hits(
+  ctx: QueryCtx,
+  cards: Doc<"cards">[],
+  lang: Locale,
+  matched: Map<string, string>,
+): Promise<SearchHit[]> {
   return Promise.all(
     cards.map(async (card) => {
-      const row = await browseRow(ctx, card);
+      const row = await browseRow(ctx, card, lang);
       const name = matched.get(card.key) ?? null;
       return { ...row, matchedName: name !== null && name !== row.name ? name : null };
     }),

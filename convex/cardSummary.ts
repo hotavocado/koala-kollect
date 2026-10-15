@@ -4,7 +4,7 @@ import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, type MutationCtx } from "./_generated/server";
 import { cardImage, pickName } from "./cards";
 
-// Each card's browse-row summary (name, printing count, base image), stored on
+// Each card's browse-row summary (names, printing count, base image), stored on
 // the card so browseRow reads the card alone. Recomputed over every card after
 // each ok sync, in batches, by an action that stops after SUMMARY_BUDGET_MS and
 // schedules the next, like dataSync.retireChain. Only a changed summary is
@@ -17,6 +17,18 @@ const SUMMARY_BATCH_SIZE = 100;
 const SUMMARY_BUDGET_MS = 5 * 60 * 1000;
 
 type Summary = NonNullable<Doc<"cards">["summary"]>;
+type Names = NonNullable<Summary["names"]>;
+const NAME_SITES = ["en", "jp", "cn", "tcgcsv"] as const satisfies (keyof Names)[];
+
+// Each site's current printed name. An errata closes the old row, so only rows
+// with no superseded_at count.
+function namesBySite(observations: Doc<"card_observations">[]): Names {
+  const names: Names = {};
+  for (const o of observations) {
+    if (o.superseded_at === undefined && names[o.site] === undefined) names[o.site] = o.name;
+  }
+  return names;
+}
 
 async function summarize(ctx: MutationCtx, card: Doc<"cards">): Promise<Summary> {
   const [observations, printings] = await Promise.all([
@@ -29,11 +41,26 @@ async function summarize(ctx: MutationCtx, card: Doc<"cards">): Promise<Summary>
       .withIndex("by_card", (q) => q.eq("card_key", card.key))
       .collect(),
   ]);
-  return { name: pickName(observations), printings: printings.length, image_url: cardImage(printings) };
+  return {
+    name: pickName(observations),
+    names: namesBySite(observations),
+    printings: printings.length,
+    image_url: cardImage(printings),
+  };
 }
 
+// A stored summary with no names is never the same, so the chain rewrites
+// every card once after names were added.
 function sameSummary(a: Summary | undefined, b: Summary): boolean {
-  return a !== undefined && a.name === b.name && a.printings === b.printings && a.image_url === b.image_url;
+  if (a === undefined || a.names === undefined || b.names === undefined) return false;
+  const { names: x } = a;
+  const { names: y } = b;
+  return (
+    a.name === b.name &&
+    NAME_SITES.every((s) => x[s] === y[s]) &&
+    a.printings === b.printings &&
+    a.image_url === b.image_url
+  );
 }
 
 // One page of cards in _id order. Returns how many summaries changed and where

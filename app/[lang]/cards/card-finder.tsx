@@ -10,7 +10,7 @@ import { SEARCH_LIMIT } from "@/convex/cardSearchCore";
 import { useI18n } from "@/lib/i18n/client";
 import { CardImage } from "./card-image";
 import { SetIndex } from "./set-index";
-import { cardLabel, ColorDots } from "./ui";
+import { cardLabel, ColorDots, siteTag } from "./ui";
 
 // How long typing has to pause before the query runs and the URL updates.
 const DEBOUNCE_MS = 200;
@@ -25,7 +25,7 @@ export function CardFinder() {
 }
 
 function ConnectedFinder() {
-  const { t, href } = useI18n();
+  const { t, href, lang } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -42,7 +42,7 @@ function ConnectedFinder() {
     return () => clearTimeout(id);
   }, [value, term, pathname, router]);
 
-  const live = useQuery(api.cardSearch.search, term ? { q: term } : "skip");
+  const live = useQuery(api.cardSearch.search, term ? { q: term, lang } : "skip");
   // Keep the last answer on screen while the next one loads, so the list
   // doesn't blink empty on every keystroke.
   const [shown, setShown] = useState<SearchResult | undefined>(undefined);
@@ -147,7 +147,9 @@ function ResultRow({ hit }: { hit: SearchHit }) {
         fallback={<span className="aspect-[63/88] w-12 shrink-0 rounded bg-layer-2" />}
       />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{label}</span>
+        <span lang={hit.name ? siteTag(hit.nameSite) : undefined} className="block truncate text-sm font-medium">
+          {label}
+        </span>
         {hit.matchedName && (
           <span className="block truncate text-xs text-muted-foreground">
             {hit.matchedName}

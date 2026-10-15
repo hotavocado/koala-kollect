@@ -2,15 +2,16 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { locale, SITE_ORDER, type Locale } from "./lang";
 
 // Public reads for the browse page. Every table here is a mirror written only
 // by dataSync, so these queries never write and never take a user.
+//
+// Each takes the reader's language, optional so a client from before it
+// existed keeps working through a deploy. It picks whose printed text to show
+// (lang.ts SITE_ORDER); the rules facts are the same in every language.
 
-// Whose printed name to show when a card has several current observations.
-// English first because the browse page is in English; JP before cn because
-// JP is the authority for card facts. tcgcsv last: it observes
-// DON cards only, which no official site lists, so it never outranks one.
-const NAME_SITE_ORDER: Doc<"card_observations">["site"][] = ["en", "jp", "cn", "tcgcsv"];
+type SiteOrder = readonly Doc<"card_observations">["site"][];
 
 export type BrowseCard = {
   key: string;
@@ -19,15 +20,22 @@ export type BrowseCard = {
   category: Doc<"cards">["category"];
   colors: Doc<"cards">["colors"];
   name: string | null;
+  // The site whose printed name is shown, so the page can mark its language.
+  // Null when there is no name, or it came from a summary stored before
+  // summaries kept one name per site.
+  nameSite: Doc<"card_observations">["site"] | null;
   imageUrl: string | null;
   printings: number;
 };
 
 // The current observation whose printed text the page shows. An errata closes
 // the old row, so only rows with no superseded_at are candidates.
-function pickObservation(observations: Doc<"card_observations">[]): Doc<"card_observations"> | null {
+function pickObservation(
+  observations: Doc<"card_observations">[],
+  order: SiteOrder = SITE_ORDER.en,
+): Doc<"card_observations"> | null {
   const current = observations.filter((o) => o.superseded_at === undefined);
-  for (const site of NAME_SITE_ORDER) {
+  for (const site of order) {
     const hit = current.find((o) => o.site === site);
     if (hit) return hit;
   }
@@ -45,10 +53,10 @@ function isBase(variant: Doc<"printings">["variant"]): boolean {
 
 // Base printings first, then the same site order as the name, so the image
 // and name usually agree.
-function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
+function rankPrintings(printings: Doc<"printings">[], order: SiteOrder): Doc<"printings">[] {
   const siteRank = (s: Doc<"printings">["site"]) => {
-    const i = (NAME_SITE_ORDER as string[]).indexOf(s);
-    return i === -1 ? NAME_SITE_ORDER.length : i;
+    const i = order.indexOf(s);
+    return i === -1 ? order.length : i;
   };
   return [...printings].sort(
     (a, b) =>
@@ -58,8 +66,8 @@ function rankPrintings(printings: Doc<"printings">[]): Doc<"printings">[] {
 
 // The card's image: the best-ranked printing that has one. A tcgcsv printing
 // has none until TCGplayer lists an image, and the card then shows its text face.
-export function cardImage(printings: Doc<"printings">[]): string | null {
-  return rankPrintings(printings).find((p) => p.image_url !== undefined)?.image_url ?? null;
+export function cardImage(printings: Doc<"printings">[], order: SiteOrder = SITE_ORDER.en): string | null {
+  return rankPrintings(printings, order).find((p) => p.image_url !== undefined)?.image_url ?? null;
 }
 
 // Official card lists that search by card number through ?freewords=. cn's
@@ -80,12 +88,12 @@ function listUrl(site: Doc<"printings">["site"], number: string | undefined): st
 }
 
 export const browse = query({
-  args: { paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { paginationOpts }) => {
+  args: { paginationOpts: paginationOptsValidator, lang: v.optional(locale) },
+  handler: async (ctx, { paginationOpts, lang = "en" }) => {
     // by_number puts numbered cards in card-number order. DON cards have no
     // number, so they sort before every numbered card.
     const page = await ctx.db.query("cards").withIndex("by_number").paginate(paginationOpts);
-    const rows: BrowseCard[] = await Promise.all(page.page.map((card) => browseRow(ctx, card)));
+    const rows: BrowseCard[] = await Promise.all(page.page.map((card) => browseRow(ctx, card, lang)));
     return { ...page, page: rows };
   },
 });
@@ -96,8 +104,10 @@ export const browse = query({
 export async function browseRow(
   ctx: QueryCtx,
   card: Doc<"cards">,
+  lang: Locale,
   imageFrom?: Doc<"printings">[],
 ): Promise<BrowseCard> {
+  const order = SITE_ORDER[lang];
   const row = {
     key: card.key,
     number: card.number ?? null,
@@ -108,12 +118,17 @@ export async function browseRow(
   // The stored summary saves reading every observation and printing of the
   // card: on the promo set page those were about two thirds of the reads.
   // imageFrom is printings the caller already holds, so it costs nothing.
+  // The stored image is English-first whatever the language: one per card.
   const summary = card.summary;
   if (summary) {
+    const names = summary.names;
+    const nameSite = names ? (order.find((s) => names[s] !== undefined) ?? null) : null;
     return {
       ...row,
-      name: summary.name,
-      imageUrl: imageFrom?.length ? cardImage(imageFrom) : summary.image_url,
+      // A summary from before names: its English-first name, language unknown.
+      name: names ? (nameSite ? (names[nameSite] ?? null) : null) : summary.name,
+      nameSite,
+      imageUrl: imageFrom?.length ? cardImage(imageFrom, order) : summary.image_url,
       printings: summary.printings,
     };
   }
@@ -128,10 +143,12 @@ export async function browseRow(
       .withIndex("by_card", (q) => q.eq("card_key", card.key))
       .collect(),
   ]);
+  const shown = pickObservation(observations, order);
   return {
     ...row,
-    name: pickName(observations),
-    imageUrl: cardImage(imageFrom?.length ? imageFrom : printings),
+    name: shown?.name ?? null,
+    nameSite: shown?.site ?? null,
+    imageUrl: cardImage(imageFrom?.length ? imageFrom : printings, order),
     printings: printings.length,
   };
 }
@@ -148,12 +165,15 @@ export type CardSetRow = {
   releaseSite: "en" | "jp" | null;
 };
 
-function setRow(set: Doc<"card_sets">): CardSetRow {
+// The title in the reader's language when the set has a product there, by the
+// same order as card names. A row rebuilt before titles existed has only title.
+function setRow(set: Doc<"card_sets">, lang: Locale): CardSetRow {
+  const titles: Partial<Record<Doc<"card_observations">["site"], string>> = set.titles ?? {};
   return {
     slug: set.slug,
     code: set.code ?? null,
     kind: set.kind,
-    title: set.title,
+    title: SITE_ORDER[lang].map((s) => titles[s]).find((t) => t !== undefined) ?? set.title,
     cardCount: set.card_count,
     releaseDate: set.release_date ?? null,
     releaseSite: set.release_site ?? null,
@@ -161,10 +181,10 @@ function setRow(set: Doc<"card_sets">): CardSetRow {
 }
 
 export const sets = query({
-  args: {},
-  handler: async (ctx): Promise<CardSetRow[]> => {
+  args: { lang: v.optional(locale) },
+  handler: async (ctx, { lang = "en" }): Promise<CardSetRow[]> => {
     const rows = await ctx.db.query("card_sets").withIndex("by_order").collect();
-    return rows.map(setRow);
+    return rows.map((set) => setRow(set, lang));
   },
 });
 
@@ -182,7 +202,12 @@ export function ownPrefixes(code: string | null): string[] {
 // DON under a product, so they reach a set only through don_sets, never through
 // printing_products; a card the set already lists stays where it is. The
 // thumbnail is the DON's own tcgcsv printing. Ordered by design.
-async function setDon(ctx: QueryCtx, slug: string, listed: Map<string, unknown>): Promise<BrowseCard[]> {
+async function setDon(
+  ctx: QueryCtx,
+  slug: string,
+  lang: Locale,
+  listed: Map<string, unknown>,
+): Promise<BrowseCard[]> {
   const placed = await ctx.db
     .query("don_sets")
     .withIndex("by_set_slug", (q) => q.eq("set_slug", slug))
@@ -205,7 +230,7 @@ async function setDon(ctx: QueryCtx, slug: string, listed: Map<string, unknown>)
             ),
           ),
         ]);
-        return card ? browseRow(ctx, card, printings.filter((p) => p !== null)) : null;
+        return card ? browseRow(ctx, card, lang, printings.filter((p) => p !== null)) : null;
       }),
   );
   return rows
@@ -217,10 +242,10 @@ async function setDon(ctx: QueryCtx, slug: string, listed: Map<string, unknown>)
 }
 
 export const setCards = query({
-  args: { slug: v.string() },
+  args: { slug: v.string(), lang: v.optional(locale) },
   handler: async (
     ctx,
-    { slug },
+    { slug, lang = "en" },
   ): Promise<{ set: CardSetRow; cards: BrowseCard[]; fromOtherSets: BrowseCard[]; don: BrowseCard[] } | null> => {
     const set = await ctx.db
       .query("card_sets")
@@ -255,7 +280,7 @@ export const setCards = query({
           .unique(),
       ),
     );
-    const rows = await Promise.all(cards.flatMap((c) => (c ? [browseRow(ctx, c, linked.get(c.key))] : [])));
+    const rows = await Promise.all(cards.flatMap((c) => (c ? [browseRow(ctx, c, lang, linked.get(c.key))] : [])));
     // Numbered cards by number (numeric, so -9 before -10), then DON by design.
     rows.sort(
       (a, b) =>
@@ -270,9 +295,9 @@ export const setCards = query({
     const own = ownPrefixes(set.code ?? null);
     const isOwn = (c: BrowseCard) => own.length === 0 || own.includes(c.number?.split("-")[0] ?? "");
     const ownCards = rows.filter(isOwn);
-    const don = await setDon(ctx, slug, linked);
-    if (ownCards.length * 2 < rows.length) return { set: setRow(set), cards: rows, fromOtherSets: [], don };
-    return { set: setRow(set), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)), don };
+    const don = await setDon(ctx, slug, lang, linked);
+    if (ownCards.length * 2 < rows.length) return { set: setRow(set, lang), cards: rows, fromOtherSets: [], don };
+    return { set: setRow(set, lang), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)), don };
   },
 });
 
@@ -519,6 +544,7 @@ export type PrintDetail = {
     category: Doc<"cards">["category"];
     colors: Doc<"cards">["colors"];
     name: string | null;
+    nameSite: Doc<"card_observations">["site"] | null;
   };
   site: Doc<"printings">["site"];
   language: Language;
@@ -530,8 +556,8 @@ export type PrintDetail = {
 // so identical-looking reprints and the same promo on two sites stay apart.
 // The card key is checked so a print link never renders under another card.
 export const print = query({
-  args: { cardKey: v.string(), printKey: v.string() },
-  handler: async (ctx, { cardKey, printKey }): Promise<PrintDetail | null> => {
+  args: { cardKey: v.string(), printKey: v.string(), lang: v.optional(locale) },
+  handler: async (ctx, { cardKey, printKey, lang = "en" }): Promise<PrintDetail | null> => {
     const p = await ctx.db
       .query("printings")
       .withIndex("by_key", (q) => q.eq("key", printKey))
@@ -549,6 +575,7 @@ export const print = query({
         .collect(),
       loadPrinting(ctx, p),
     ]);
+    const shown = pickObservation(observations, SITE_ORDER[lang]);
     return {
       card: {
         key: card.key,
@@ -556,7 +583,8 @@ export const print = query({
         donDesign: card.don_design ?? null,
         category: card.category,
         colors: card.colors,
-        name: pickName(observations),
+        name: shown?.name ?? null,
+        nameSite: shown?.site ?? null,
       },
       site: p.site,
       language: LANGUAGE_OF[p.site],
@@ -567,8 +595,8 @@ export const print = query({
 });
 
 export const detail = query({
-  args: { key: v.string() },
-  handler: async (ctx, { key }): Promise<CardDetail | null> => {
+  args: { key: v.string(), lang: v.optional(locale) },
+  handler: async (ctx, { key, lang = "en" }): Promise<CardDetail | null> => {
     const card = await ctx.db
       .query("cards")
       .withIndex("by_key", (q) => q.eq("key", key))
@@ -611,8 +639,11 @@ export const detail = query({
       else regions.push({ language, listUrl: listUrl(site, card.number), printings: [printing] });
     }
 
-    const obs = pickObservation(observations);
-    const ranked = rankPrintings(printings);
+    // Name, types, effect and trigger all from one observation, so the text
+    // block reads in one language.
+    const order = SITE_ORDER[lang];
+    const obs = pickObservation(observations, order);
+    const ranked = rankPrintings(printings, order);
     return {
       key: card.key,
       number: card.number ?? null,
@@ -634,7 +665,7 @@ export const detail = query({
             trigger: obs.trigger ?? null,
           }
         : null,
-      imageUrl: cardImage(printings),
+      imageUrl: cardImage(printings, order),
       officialUrl: ranked.map((p) => listUrl(p.site, card.number)).find(Boolean) ?? null,
       regions,
     };

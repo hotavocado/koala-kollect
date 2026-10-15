@@ -18,8 +18,8 @@ export function SetIndex() {
 }
 
 function ConnectedIndex() {
-  const { t } = useI18n();
-  const sets = useQuery(api.cards.sets, {});
+  const { t, lang } = useI18n();
+  const sets = useQuery(api.cards.sets, { lang });
   if (sets === undefined) return <p className="text-sm text-muted-foreground">{t.setIndex.loading}</p>;
   if (sets.length === 0) return <EmptyDatabase />;
 

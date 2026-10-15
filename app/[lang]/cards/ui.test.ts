@@ -1,6 +1,18 @@
 import { describe, expect, test } from "vitest";
 import enDict from "@/lib/i18n/en";
-import { cardLabel, cnOnly, confidenceShown, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
+import jaDict from "@/lib/i18n/ja";
+import {
+  cardLabel,
+  cnOnly,
+  confidenceShown,
+  foreignText,
+  handoutWhen,
+  partialDate,
+  quantityNoteShown,
+  releaseLabel,
+  siteTag,
+  textInLine,
+} from "./ui";
 
 const EN = { tag: "en-US", t: enDict };
 
@@ -121,5 +133,33 @@ describe("confidenceShown", () => {
   test("every other source keeps its confidence", () => {
     expect(confidenceShown("namuwiki", "corroborated")).toBe("corroborated");
     expect(confidenceShown("official_cardlist", "authoritative")).toBe("authoritative");
+  });
+});
+
+describe("card text language", () => {
+  test("names carry their site's language tag", () => {
+    expect([siteTag("en"), siteTag("jp"), siteTag("cn"), siteTag("tcgcsv"), siteTag(null)]).toEqual([
+      "en",
+      "ja",
+      "zh-Hans",
+      "en",
+      undefined,
+    ]);
+  });
+
+  test("the note shows when the text is not in the page's language", () => {
+    expect(foreignText("jp", "ja")).toBe(false);
+    expect(foreignText("cn", "zh")).toBe(false);
+    expect(foreignText("tcgcsv", "en")).toBe(false);
+    expect(foreignText("jp", "en")).toBe(true);
+    // ko and fr have no card list of their own, so always.
+    expect(foreignText("en", "ko")).toBe(true);
+    expect(foreignText("en", "fr")).toBe(true);
+    expect(foreignText(null, "fr")).toBe(false);
+  });
+
+  test("names the text's language in the page's", () => {
+    expect(textInLine("jp", enDict)).toBe("Card text in Japanese.");
+    expect(textInLine("tcgcsv", jaDict)).toBe("カードテキストは英語です。");
   });
 });

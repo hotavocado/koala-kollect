@@ -117,6 +117,42 @@ test("rebuild counts distinct cards per set and lists them by number", async () 
   expect(await t.query(api.cards.setCards, { slug: "nope" })).toBeNull();
 });
 
+test("the set index and a set page read the title in the reader's language", async () => {
+  const t = await seed();
+  await t.action(internal.cardSets.rebuild, {});
+  const title = async (lang?: "en" | "ja" | "zh" | "ko") =>
+    (await t.query(api.cards.sets, lang ? { lang } : {})).find((s) => s.slug === "op-01")?.title;
+  expect(await title("ja")).toBe("ブースターパック ROMANCE DAWN");
+  expect(await title("en")).toBe("Romance Dawn");
+  expect(await title("ko")).toBe("Romance Dawn");
+  // No cn product: English.
+  expect(await title("zh")).toBe("Romance Dawn");
+  expect(await title()).toBe("Romance Dawn");
+  expect((await t.query(api.cards.setCards, { slug: "op-01", lang: "ja" }))?.set.title).toBe("ブースターパック ROMANCE DAWN");
+});
+
+// A row rebuilt before titles existed reads its one title; the next rebuild
+// fills titles, and a later change to only one language's title still lands.
+test("a rebuild fills and updates titles on a stored row", async () => {
+  const t = await seed();
+  await t.action(internal.cardSets.rebuild, {});
+  await t.run(async (ctx) => {
+    const row = await ctx.db.query("card_sets").withIndex("by_slug", (q) => q.eq("slug", "op-01")).unique();
+    await ctx.db.patch(row!._id, { titles: undefined });
+  });
+  const ja = async () => (await t.query(api.cards.sets, { lang: "ja" })).find((s) => s.slug === "op-01")?.title;
+  expect(await ja()).toBe("Romance Dawn");
+  await t.action(internal.cardSets.rebuild, {});
+  expect(await ja()).toBe("ブースターパック ROMANCE DAWN");
+
+  await t.run(async (ctx) => {
+    const jp = await ctx.db.query("products").withIndex("by_key", (q) => q.eq("key", "jp:OP-01")).unique();
+    await ctx.db.patch(jp!._id, { name: "ブースターパック ロマンスドーン【OP-01】" });
+  });
+  await t.action(internal.cardSets.rebuild, {});
+  expect(await ja()).toBe("ブースターパック ロマンスドーン");
+});
+
 test("rebuild prunes a set whose products are gone", async () => {
   const t = await seed();
   await t.action(internal.cardSets.rebuild, {});

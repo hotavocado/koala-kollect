@@ -98,6 +98,8 @@ const en = {
     trigger: "Trigger",
     textFromTcgplayer: "Name from TCGplayer's catalogue.",
     textFrom: "Text from the {site} card list.",
+    // Shown when no card list prints the card in the reader's language.
+    textIn: "Card text in {language}.",
     noPrintings: "No printings of this card are listed yet.",
     onSiteList: "On this site's card list",
     fromTcgplayer: "from TCGplayer",
