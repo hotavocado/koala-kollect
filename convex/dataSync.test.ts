@@ -11,7 +11,11 @@ import { type ManifestType, RETIRED_TYPE, type RecordType, SYNCED_TABLES, TYPE_T
 // every record type, so syncing it end to end also checks that
 // convex/schema.ts still accepts what the contract allows, and that pass 1
 // still reads the contract's retired_printing row. Refresh the copy when the
-// contract changes.
+// contract changes. The app ships contract v2 first, so until data main carries
+// it the copy is hand-edited to v2: the printing_link row is gone, and the
+// design, printing_design, set and product_set rows, printing.image_hash,
+// distribution.stamp_color, product.is_bucket and a product with no series_id
+// (minted from source text) are written to the agreed fields.
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
 const COMMIT_A = "a".repeat(40);
@@ -21,7 +25,7 @@ type Rec = { key: string } & Record<string, unknown>;
 
 // The contract's layout: one file per type, or per type and site. A
 // distribution carries a site but still lives in one file.
-const ONE_FILE: ReadonlySet<RecordType> = new Set(["card", "distribution", "printing_distribution", "printing_link"]);
+const ONE_FILE: ReadonlySet<RecordType> = new Set(["card", "distribution", "printing_distribution"]);
 function pathFor(type: RecordType, rec: Rec): string {
   const table = TYPE_TO_TABLE[type];
   return !ONE_FILE.has(type) && typeof rec.site === "string" ? `data/${table}/${rec.site}.jsonl` : `data/${table}.jsonl`;
@@ -287,7 +291,7 @@ describe("dataSync.run", () => {
     const SURVIVOR = "prt_000000000002";
     const PREFIXED = `${RETIRED}1`; // shares the retired key as a prefix and must survive
     const RETIRED_PATH = "data/retired_printings.jsonl";
-    const DEPENDENTS = ["printing_products", "printing_distributions", "printing_locators"] as const;
+    const DEPENDENTS = ["printing_products", "printing_distributions", "printing_locators", "printing_designs"] as const;
 
     function retiredRow(key: string, extra: Record<string, unknown> = {}) {
       return JSON.stringify({
@@ -315,7 +319,7 @@ describe("dataSync.run", () => {
     }
 
     // What the data repo commits after retiring RETIRED: its printing and its
-    // product, claim and link rows are gone, its locator now points at the
+    // product, claim and design rows are gone, its locator now points at the
     // survivor, and the retired file lists it.
     function afterRetire(files: ReturnType<typeof fixtureFiles>, keys = [RETIRED]) {
       const gone = new Set<unknown>(keys);
@@ -324,7 +328,7 @@ describe("dataSync.run", () => {
           const r = JSON.parse(l) as Rec;
           if (f.type === "printing_locator" && gone.has(r.printing_key)) return [JSON.stringify({ ...r, printing_key: SURVIVOR })];
           if (gone.has(r.key) && f.type === "printing") return [];
-          if (gone.has(r.printing_key) || gone.has(r.printing_a) || gone.has(r.printing_b)) return [];
+          if (gone.has(r.printing_key)) return [];
           return [l];
         });
       }
@@ -380,7 +384,7 @@ describe("dataSync.run", () => {
       expect(row).toMatchObject({ status: "ok", retired: 45, upserted: 1, unproxied_images: 0 });
       expect(row.finished_at).toBeDefined();
       for (const key of keys) {
-        expect(await rowsFor(t, key)).toEqual({ printings: 0, printing_links: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0 });
+        expect(await rowsFor(t, key)).toEqual({ printings: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0, printing_designs: 0 });
       }
       expect((await setOf(t, PRODUCT))!.card_count).toBe(setBefore!.card_count - 1);
     });
@@ -527,9 +531,6 @@ describe("dataSync.run", () => {
       return await t.run(async (ctx) => {
         const out: Record<string, number> = {
           printings: (await ctx.db.query("printings").withIndex("by_key", (q) => q.eq("key", key)).collect()).length,
-          printing_links:
-            (await ctx.db.query("printing_links").withIndex("by_printing_a", (q) => q.eq("printing_a", key)).collect()).length +
-            (await ctx.db.query("printing_links").withIndex("by_printing_b", (q) => q.eq("printing_b", key)).collect()).length,
         };
         for (const table of DEPENDENTS) {
           out[table] = (await ctx.db.query(table).withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()).length;
@@ -544,14 +545,14 @@ describe("dataSync.run", () => {
       await sync(t, { commit: COMMIT_A });
       // Every dependent table holds a row for the retired key before, so an
       // empty result after is the delete and not an empty fixture.
-      expect(await rowsFor(t, RETIRED)).toEqual({ printings: 1, printing_links: 1, printing_products: 1, printing_distributions: 1, printing_locators: 1 });
+      expect(await rowsFor(t, RETIRED)).toEqual({ printings: 1, printing_products: 1, printing_distributions: 1, printing_locators: 1, printing_designs: 1 });
       const prefixedBefore = await rowsFor(t, PREFIXED);
       const before = await counts(t);
 
       const r = await sync(t, { commit: COMMIT_B });
 
       expect(r.status).toBe("ok");
-      expect(await rowsFor(t, RETIRED)).toEqual({ printings: 0, printing_links: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0 });
+      expect(await rowsFor(t, RETIRED)).toEqual({ printings: 0, printing_products: 0, printing_distributions: 0, printing_locators: 0, printing_designs: 0 });
       expect(await rowsFor(t, PREFIXED)).toEqual(prefixedBefore);
       expect(prefixedBefore).toMatchObject({ printings: 1, printing_products: 1 });
       expect(await counts(t)).toEqual({
@@ -559,7 +560,7 @@ describe("dataSync.run", () => {
         printings: before.printings - 1,
         printing_products: before.printing_products - 1,
         printing_distributions: before.printing_distributions - 1,
-        printing_links: before.printing_links - 1,
+        printing_designs: before.printing_designs - 1,
       });
       expect((await syncs(t)).at(-1)).toMatchObject({ status: "ok", retired: 1 });
     });
@@ -712,13 +713,13 @@ describe("dataSync.run", () => {
   test("never deletes a record that leaves the data repo", async () => {
     const t = convexTest(schema, modules);
     const fewer = fixtureFiles();
-    const linkPath = Object.keys(fewer).find((p) => fewer[p].type === "printing_link")!;
-    fewer[linkPath].lines = [];
+    const designPath = Object.keys(fewer).find((p) => fewer[p].type === "printing_design")!;
+    fewer[designPath].lines = [];
     serve({ [COMMIT_A]: await repoAt(), [COMMIT_B]: await repoAt(fewer) });
 
     await sync(t, { commit: COMMIT_A });
     expect((await sync(t, { commit: COMMIT_B })).status).toBe("ok");
-    expect((await counts(t)).printing_links).toBe(1);
+    expect((await counts(t)).printing_designs).toBe(1);
   });
 
   // Each refusal must name its reason and leave every table empty.

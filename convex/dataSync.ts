@@ -434,8 +434,7 @@ export const retireBatch = internalMutation({
         ...(await ctx.db.query("printing_products").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
         ...(await ctx.db.query("printing_distributions").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
         ...(await ctx.db.query("printing_locators").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
-        ...(await ctx.db.query("printing_links").withIndex("by_printing_a", (q) => q.eq("printing_a", key)).collect()),
-        ...(await ctx.db.query("printing_links").withIndex("by_printing_b", (q) => q.eq("printing_b", key)).collect()),
+        ...(await ctx.db.query("printing_designs").withIndex("by_printing", (q) => q.eq("printing_key", key)).collect()),
       ];
       for (const row of rows) await ctx.db.delete(row._id);
     }

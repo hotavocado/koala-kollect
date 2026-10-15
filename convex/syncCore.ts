@@ -13,7 +13,10 @@ export const TYPE_TO_TABLE = {
   printing_product: "printing_products",
   distribution: "distributions",
   printing_distribution: "printing_distributions",
-  printing_link: "printing_links",
+  design: "designs",
+  printing_design: "printing_designs",
+  set: "sets",
+  product_set: "product_sets",
   don_set: "don_sets",
 } as const;
 
