@@ -82,6 +82,7 @@ describe("cards.browse", () => {
         imageUrl: "https://example.test/jp/prt_000000000002.png",
         printings: 2,
         designs: null,
+        counts: { designs: 0, languages: 2, unreviewed: 2, exclusive: {} },
       },
     ]);
   });

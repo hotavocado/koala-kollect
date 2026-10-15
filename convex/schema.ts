@@ -149,6 +149,11 @@ export default defineSchema({
         designs: v.optional(v.number()),
         languages: v.optional(v.number()),
         unreviewed: v.optional(v.number()),
+        // Designs exclusive to each language (designCore.designCounts), keyed
+        // only where there is one. Absent on a summary stored before it.
+        exclusive: v.optional(
+          v.object({ en: v.optional(v.number()), jp: v.optional(v.number()), cn: v.optional(v.number()) }),
+        ),
       }),
     ),
   })

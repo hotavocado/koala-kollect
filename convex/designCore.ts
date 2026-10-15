@@ -52,27 +52,43 @@ export async function readDesigns(
   return designOf;
 }
 
-export type DesignCounts = { designs: number; languages: number; unreviewed: number };
+// Designs exclusive to each language (exclusiveLanguage), keyed only for a
+// language that has one. Optional for a client served by a backend deployed
+// before these counts existed.
+export type ExclusiveCounts = Partial<Record<Language, number>>;
+export type DesignCounts = { designs: number; languages: number; unreviewed: number; exclusive?: ExclusiveCounts };
 
 // What the tile and the page headline count: designs with a printing, the
-// languages the card is printed in (tcgcsv is English), and printings no
-// design holds yet.
+// languages the card is printed in (tcgcsv is English), printings no design
+// holds yet, and designs exclusive to a language, by the same rule as the
+// card page's star.
 export function designCounts(
   printings: Pick<Doc<"printings">, "key" | "site">[],
-  designOf: ReadonlyMap<string, Pick<Doc<"designs">, "key">>,
+  designOf: ReadonlyMap<string, Pick<Doc<"designs">, "key" | "exclusive_override">>,
 ): DesignCounts {
-  const designs = new Set<string>();
+  const designs = new Map<string, { override: boolean | null | undefined; languages: Set<Language> }>();
+  const cardLanguages = new Set<Language>();
+  const unreviewedLanguages = new Set<Language>();
   let unreviewed = 0;
   for (const p of printings) {
+    const language = LANGUAGE_OF[p.site];
+    cardLanguages.add(language);
     const d = designOf.get(p.key);
-    if (d) designs.add(d.key);
-    else unreviewed++;
+    if (!d) {
+      unreviewed++;
+      unreviewedLanguages.add(language);
+      continue;
+    }
+    const group = designs.get(d.key) ?? { override: d.exclusive_override, languages: new Set<Language>() };
+    group.languages.add(language);
+    designs.set(d.key, group);
   }
-  return {
-    designs: designs.size,
-    languages: new Set(printings.map((p) => LANGUAGE_OF[p.site])).size,
-    unreviewed,
-  };
+  const exclusive: ExclusiveCounts = {};
+  for (const { override, languages } of designs.values()) {
+    const only = exclusiveLanguage(override, languages, cardLanguages, unreviewedLanguages);
+    if (only) exclusive[only] = (exclusive[only] ?? 0) + 1;
+  }
+  return { designs: designs.size, languages: cardLanguages.size, unreviewed, exclusive };
 }
 
 // The language a design is exclusive to, or null. Derived: all its printings

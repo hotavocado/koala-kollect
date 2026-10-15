@@ -40,7 +40,8 @@ export function CardTile({ card }: { card: BrowseCard }) {
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <ColorDots colors={card.colors} />
           {card.number && <span>{card.number}</span>}
-          <span className={card.designs ? undefined : "whitespace-nowrap"}>{countLine(card.printings, card.designs, t, plural)}</span>
+          {/* counts is undefined from a backend deployed before it. */}
+          <span>{countLine(card.printings, card.counts ?? card.designs, t, plural)}</span>
         </p>
       </div>
     </Link>

@@ -60,6 +60,7 @@ const en = {
     designs: plural({ one: "{n} design", other: "{n} designs" }),
     languages: plural({ one: "{n} language", other: "{n} languages" }),
     unreviewed: plural({ other: "{n} unreviewed" }),
+    exclusive: plural({ other: "{n} {language} exclusive" }),
   },
   finder: {
     label: "Find a card by number or name",
@@ -112,6 +113,8 @@ const en = {
     whereFrom: "Where it came from",
     // The headline once a card has designs: "2 designs across 3 languages, 12 printings".
     designLine: "{designs} across {languages}, {printings}",
+    // The headline before a card has designs: "12 printings across 3 languages".
+    printingLine: "{printings} across {languages}",
     // On a design printed in one language only. The star stays in every language.
     exclusive: "★ {language} exclusive",
     unreviewed: "Not yet sorted into designs",
@@ -192,6 +195,8 @@ const en = {
     jp: "Japanese",
     cn: "Simplified Chinese",
   } satisfies Record<CardRegion["language"], string>,
+  // A language in a count, short: "3 cn exclusive".
+  languageCode: { en: "en", jp: "jp", cn: "cn" } satisfies Record<CardRegion["language"], string>,
   variant: {
     base: "Base",
     normal: "Normal",

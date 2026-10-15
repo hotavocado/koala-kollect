@@ -139,7 +139,7 @@ function Detail({ card }: { card: CardDetail }) {
       {/* Grouped by design once the card has one; until then by language. */}
       <section className="flex flex-col gap-8">
         <h2 className="text-2xl font-semibold">
-          {countLine(total, designs.length > 0 ? card.counts : null, t, plural)}
+          {countLine(total, card.counts, t, plural)}
         </h2>
         {card.regions.length === 0 && (
           <p className="text-sm text-muted-foreground">{t.card.noPrintings}</p>

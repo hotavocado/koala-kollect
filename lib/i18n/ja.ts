@@ -52,6 +52,7 @@ const ja = {
     designs: plural({ other: "{n}デザイン" }),
     languages: plural({ other: "{n}言語" }),
     unreviewed: plural({ other: "未確認{n}件" }),
+    exclusive: plural({ other: "{language}限定{n}件" }),
   },
   finder: {
     label: "カード番号または名前でカードを探す",
@@ -102,6 +103,7 @@ const ja = {
     from: "{origins}より",
     whereFrom: "出どころ",
     designLine: "{languages}で{designs}、{printings}",
+    printingLine: "{languages}で{printings}",
     exclusive: "★ {language}限定",
     unreviewed: "デザイン未分類",
   },
@@ -178,6 +180,7 @@ const ja = {
     jp: "日本語",
     cn: "簡体字中国語",
   },
+  languageCode: { en: "英語", jp: "日本語", cn: "中国語" },
   variant: {
     base: "ベース",
     normal: "ノーマル",

@@ -52,6 +52,7 @@ const ko = {
     designs: plural({ other: "디자인 {n}개" }),
     languages: plural({ other: "{n}개 언어" }),
     unreviewed: plural({ other: "미검토 {n}개" }),
+    exclusive: plural({ other: "{language} 한정 {n}개" }),
   },
   finder: {
     label: "번호나 이름으로 카드 찾기",
@@ -101,6 +102,7 @@ const ko = {
     from: "{origins}에서",
     whereFrom: "입수 경로",
     designLine: "{languages}에 걸친 {designs}, {printings}",
+    printingLine: "{languages}에 걸친 {printings}",
     exclusive: "★ {language} 한정",
     unreviewed: "아직 디자인으로 분류되지 않음",
   },
@@ -177,6 +179,7 @@ const ko = {
     jp: "일본어",
     cn: "중국어 간체",
   },
+  languageCode: { en: "영어", jp: "일본어", cn: "중국어" },
   variant: {
     base: "기본",
     normal: "노멀",

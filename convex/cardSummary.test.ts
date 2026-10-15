@@ -93,6 +93,7 @@ describe("cardSummary.chain", () => {
       designs: 0,
       languages: 1,
       unreviewed: 2,
+      exclusive: {},
     });
     expect(cards.find((c) => c.key === card(2).key)?.summary).toEqual({
       name: null,
@@ -102,6 +103,7 @@ describe("cardSummary.chain", () => {
       designs: 0,
       languages: 0,
       unreviewed: 0,
+      exclusive: {},
     });
 
     const syncId = await t.run(async (ctx) =>

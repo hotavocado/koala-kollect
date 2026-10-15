@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, type MutationCtx } from "./_generated/server";
 import { cardImage, pickName } from "./cards";
-import { designCounts, readDesigns } from "./designCore";
+import { designCounts, type ExclusiveCounts, LANGUAGE_ORDER, readDesigns } from "./designCore";
 
 // Each card's browse-row summary (names, printing and design counts, base
 // image), stored on the card so browseRow reads the card alone. Recomputed
@@ -67,8 +67,15 @@ function sameSummary(a: Summary | undefined, b: Summary): boolean {
     a.image_url === b.image_url &&
     a.designs === b.designs &&
     a.languages === b.languages &&
-    a.unreviewed === b.unreviewed
+    a.unreviewed === b.unreviewed &&
+    sameExclusive(a.exclusive, b.exclusive)
   );
+}
+
+// An absent count is zero, so a summary stored before exclusive counts is not
+// rewritten for a card that has none.
+function sameExclusive(a: ExclusiveCounts | undefined, b: ExclusiveCounts | undefined): boolean {
+  return LANGUAGE_ORDER.every((l) => (a?.[l] ?? 0) === (b?.[l] ?? 0));
 }
 
 // One page of cards in _id order. Returns how many summaries changed and where
