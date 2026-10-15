@@ -19,6 +19,8 @@ import { type RecordType, RETIRED_TYPE, TYPE_TO_TABLE, sha256Hex } from "./syncC
 // the sync stops before the products are written.
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
+const newTest = () => convexTest(schema, modules);
+type Convex = ReturnType<typeof newTest>;
 const COMMIT_A = "a".repeat(40);
 const COMMIT_B = "b".repeat(40);
 const T = "2026-10-15T00:00:00Z";
@@ -213,7 +215,7 @@ afterEach(() => {
 });
 
 // One sync run to its end (run, then the retire chain it schedules).
-async function sync(t: ReturnType<typeof convexTest>, commit: string) {
+async function sync(t: Convex, commit: string) {
   vi.useFakeTimers();
   try {
     await t.action(internal.dataSync.run, { commit, force: true });
@@ -225,11 +227,11 @@ async function sync(t: ReturnType<typeof convexTest>, commit: string) {
   return rows.at(-1)!;
 }
 
-let synced: Promise<ReturnType<typeof convexTest>> | null = null;
+let synced: Promise<Convex> | null = null;
 // Both commits synced once and shared: the cases only read.
 function syncedData() {
   synced ??= (async () => {
-    const t = convexTest(schema, modules);
+    const t = newTest();
     serve({ [COMMIT_A]: await repoAt(v2Rows()), [COMMIT_B]: await repoAt([...v2Rows(), ...EXTRA]) });
     expect(await sync(t, COMMIT_A)).toMatchObject({ status: "ok" });
     expect(await sync(t, COMMIT_B)).toMatchObject({ status: "ok", upserted: EXTRA.length });
@@ -241,7 +243,7 @@ function syncedData() {
 
 // The v2 examples alone, nothing added: commit A only.
 async function v2Only() {
-  const t = convexTest(schema, modules);
+  const t = newTest();
   serve({ [COMMIT_A]: await repoAt(v2Rows()) });
   expect(await sync(t, COMMIT_A)).toMatchObject({ status: "ok" });
   return t;
