@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { DEFAULT_LOCALE, LOCALE_COOKIE, type Locale, isLocale, negotiate, splitLocale } from "./lib/i18n/locales";
+import { setSlugFor } from "./lib/set-slug";
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -11,6 +12,11 @@ const YEAR = 60 * 60 * 24 * 365;
 // works: it links to /<lang>/<path>, English included.
 export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
+  const moved = movedSetPath(url.pathname);
+  if (moved) {
+    url.pathname = moved;
+    return NextResponse.redirect(url, 308);
+  }
   const { lang, path } = splitLocale(url.pathname);
 
   if (lang === DEFAULT_LOCALE) {
@@ -23,6 +29,16 @@ export function proxy(request: NextRequest) {
   const chosen = cookie && isLocale(cookie) ? cookie : (negotiate(request.headers.get("accept-language")) ?? DEFAULT_LOCALE);
   url.pathname = `/${chosen}${path === "/" ? "" : path}`;
   return chosen === DEFAULT_LOCALE ? NextResponse.rewrite(url) : NextResponse.redirect(url);
+}
+
+// Set pages were once one per product code. Since sets join across languages,
+// cn's OPC-09 page is OP-09's and en's combined OP14-EB04 is OP-14's, so an
+// old URL moves there for good, with its language prefix kept.
+export function movedSetPath(pathname: string): string | null {
+  const m = /^(.*\/cards\/set\/)([^/]+)$/.exec(pathname);
+  if (!m) return null;
+  const slug = setSlugFor(m[2]);
+  return slug === m[2] ? null : `${m[1]}${slug}`;
 }
 
 function remember(request: NextRequest, response: NextResponse, lang: Locale) {

@@ -417,8 +417,9 @@ export default defineSchema({
     summarized_cards: v.optional(v.number()),
   }).index("by_started_at", ["started_at"]),
 
-  // App-only, derived: the set index. One row per product code across sites,
-  // plus one per code-less bucket kind. Rebuilt by cardSets.rebuild after each
+  // App-only, derived: the set index. One row per set (product_sets) across
+  // sites, one per code of a product with no set, plus one per code-less
+  // bucket kind. Rebuilt by cardSets.rebuild after each
   // sync; card_count is the distinct cards listed under the set's products.
   card_sets: defineTable({
     slug: v.string(), // op-10, op14-eb04, promo
@@ -440,6 +441,12 @@ export default defineSchema({
       v.object({ en: v.optional(v.string()), jp: v.optional(v.string()), cn: v.optional(v.string()) }),
     ),
     product_keys: v.array(v.string()),
+    // Old product-code slugs this set's page replaced (opc-09, op14-eb04), so
+    // the DON don_sets places on them still show here.
+    aliases: v.optional(v.array(v.string())),
+    // Products that also carry another set: their cards numbered for that set
+    // are left off this page and its count.
+    shared: v.optional(v.array(v.object({ product_key: v.string(), other_sets: v.array(v.string()) }))),
     release_date: v.optional(v.string()), // en's, or jp's when en has no dated product for the code
     release_site: v.optional(v.union(v.literal("en"), v.literal("jp"))),
     card_count: v.number(),
