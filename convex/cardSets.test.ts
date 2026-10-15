@@ -117,6 +117,37 @@ test("rebuild counts distinct cards per set and lists them by number", async () 
   expect(await t.query(api.cards.setCards, { slug: "nope" })).toBeNull();
 });
 
+// The data repo mints a product from a print's source text for its origin. It
+// has no series page, so it makes no set: a dated one added ahead of the bucket
+// leaves the promo set's products, title and missing date as they were.
+test("a product minted from source text joins no set, dated or not", async () => {
+  const t = await seed();
+  await t.run(async (ctx) => {
+    await ctx.db.insert("products", {
+      key: "en:src_0123456789ab",
+      site: "en",
+      name: "Playmat and Storage Box Set -Nami-",
+      kind: "promo_bucket",
+      release_date: "2024-05-01",
+      release_date_source: "https://example.test/nami",
+      first_seen_at: T,
+    });
+    await ctx.db.insert("printing_products", link("prt_c_en", "en:src_0123456789ab"));
+  });
+  expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 2, pruned: 0 });
+  expect((await t.query(api.cards.sets, {})).find((s) => s.slug === "promo")).toEqual({
+    slug: "promo",
+    code: null,
+    kind: "promo",
+    title: "Promotion cards",
+    cardCount: 1,
+    releaseDate: null,
+    releaseSite: null,
+  });
+  const row = await t.run(async (ctx) => await ctx.db.query("card_sets").withIndex("by_slug", (q) => q.eq("slug", "promo")).unique());
+  expect(row?.product_keys).toEqual(["en:promo_bucket"]);
+});
+
 test("the set index and a set page read the title in the reader's language", async () => {
   const t = await seed();
   await t.action(internal.cardSets.rebuild, {});
