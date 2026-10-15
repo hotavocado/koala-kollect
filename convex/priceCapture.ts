@@ -10,7 +10,9 @@ import { internalAction, internalMutation, internalQuery } from "./_generated/se
 //
 // tcgcsv publishes once a day, around 20:00Z, and says when in
 // last-updated.txt. A run reads that first; if the last ok capture already has
-// the same value, it stops ("unchanged"). Otherwise it reads every group's
+// the same value, it stops ("unchanged"). The cron runs hourly, so a late
+// update or a failed run is picked up within the hour: a day missed is a day
+// no source can give back. Otherwise it reads every group's
 // prices, checks every row, and only then writes, so a malformed feed writes
 // nothing. A day's point is replaced, never duplicated, so a re-run is safe.
 //
@@ -89,8 +91,16 @@ export function captureDay(sourceUpdated: string): string {
 export const run = internalAction({
   args: { force: v.optional(v.boolean()) },
   handler: async (ctx, { force }): Promise<"ok" | "unchanged" | "busy" | "failed"> => {
-    const sourceUpdated = (await getText(LAST_UPDATED)).trim();
-    const day = captureDay(sourceUpdated);
+    let sourceUpdated: string;
+    let day: string;
+    try {
+      sourceUpdated = (await getText(LAST_UPDATED)).trim();
+      day = captureDay(sourceUpdated);
+    } catch (e) {
+      // Recorded, so a tcgcsv outage reads as failed runs, not as no runs.
+      await ctx.runMutation(internal.priceCapture.recordFailure, { started_at: nowIso(), error: e instanceof Error ? e.message : String(e) });
+      return "failed";
+    }
     const last = await ctx.runQuery(internal.priceCapture.lastOk, {});
     if (!force && last?.source_updated === sourceUpdated) return "unchanged";
 
@@ -152,6 +162,14 @@ export const begin = internalMutation({
       });
     }
     return await ctx.db.insert("price_captures", { ...args, source: "tcgcsv", status: "running" });
+  },
+});
+
+// A run that failed before it knew tcgcsv's last-updated value.
+export const recordFailure = internalMutation({
+  args: { started_at: v.string(), error: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("price_captures", { ...args, source: "tcgcsv", status: "failed", finished_at: nowIso() });
   },
 });
 

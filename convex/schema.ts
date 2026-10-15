@@ -449,8 +449,10 @@ export default defineSchema({
   // App-only: one row per price capture run.
   price_captures: defineTable({
     source: v.literal("tcgcsv"),
-    source_updated: v.string(), // tcgcsv's last-updated.txt, as published
-    day: v.string(), // YYYY-MM-DD the points were written under
+    // tcgcsv's last-updated.txt as published, and the YYYY-MM-DD the points
+    // were written under. Absent on a run that failed before reading it.
+    source_updated: v.optional(v.string()),
+    day: v.optional(v.string()),
     started_at: v.string(),
     finished_at: v.optional(v.string()),
     status: v.union(v.literal("running"), v.literal("ok"), v.literal("failed")),

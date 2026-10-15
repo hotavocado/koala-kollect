@@ -103,7 +103,7 @@ are the review pass. (roberto, general 93520.)
 ## Capture (started 2026-10-15)
 
 The app captures tcgcsv's prices daily from 2026-10-15
-(convex/priceCapture.ts, cron 21:30Z, after tcgcsv's ~20:00Z update), so
+(convex/priceCapture.ts, hourly at :30; it writes once per tcgcsv update, ~20:00Z), so
 history exists before anything is shown. Rows are keyed by TCGplayer product
 and finish (`{productId}:{subTypeName}`), one row per month with that month's
 daily points (market, low, mid, high, direct low). They are not joined to

@@ -133,6 +133,26 @@ describe("priceCapture.run", () => {
     expect((await captures(t))[0].error).toBe("https://tcgcsv.com/tcgplayer/68/groups: HTTP 503");
   });
 
+  test("an unreadable last-updated.txt is recorded as a failed run", async () => {
+    const t = newTest();
+    serve({ updated: "<html>", groups: {} });
+    expect(await t.action(internal.priceCapture.run, {})).toBe("failed");
+    const [capture] = await captures(t);
+    expect(capture).toMatchObject({ status: "failed", error: 'last-updated.txt is "<html>"' });
+    expect(capture.day).toBeUndefined();
+    expect(await prices(t)).toEqual([]);
+  });
+
+  test("a failed run is retried by the next run, though tcgcsv has not updated since", async () => {
+    const t = newTest();
+    const feed: Feed = { updated: "2026-10-15T20:06:01+0000", groups: { 1: [priceRow(1, "Normal", 5)], 2: [{ productId: 2 }] } };
+    serve(feed);
+    expect(await t.action(internal.priceCapture.run, {})).toBe("failed");
+    feed.groups[2] = [priceRow(2, "Normal", 6)];
+    expect(await t.action(internal.priceCapture.run, {})).toBe("ok");
+    expect(await prices(t)).toHaveLength(2);
+  });
+
   test("does not start while another capture is running", async () => {
     const t = newTest();
     serve({ updated: "2026-10-15T20:06:01+0000", groups: { 1: [priceRow(1, "Normal", 5)] } });

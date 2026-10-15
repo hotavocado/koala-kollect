@@ -7,8 +7,10 @@ const crons = cronJobs();
 // no-op, so this costs one GitHub API call on a quiet day.
 crons.daily("sync card data", { hourUTC: 6, minuteUTC: 0 }, internal.dataSync.run, {});
 
-// Capture TCGplayer's prices once a day, after tcgcsv's ~20:00Z update. A run
-// that finds tcgcsv not yet updated since the last capture writes nothing.
-crons.daily("capture tcgplayer prices", { hourUTC: 21, minuteUTC: 30 }, internal.priceCapture.run, {});
+// Capture TCGplayer's prices after tcgcsv's daily ~20:00Z update. Hourly, so a
+// late update or a failed run is retried within the hour; a run that finds
+// tcgcsv not updated since the last ok capture fetches one small file and
+// writes nothing.
+crons.hourly("capture tcgplayer prices", { minuteUTC: 30 }, internal.priceCapture.run, {});
 
 export default crons;
