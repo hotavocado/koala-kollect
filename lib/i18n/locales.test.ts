@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { fill, plural } from "./format";
-import { localePath, negotiate, splitLocale } from "./locales";
+import { localePath, negotiate, splitLocale, switchPath } from "./locales";
 
 describe("negotiate", () => {
   test("picks the highest-weighted supported language", () => {
@@ -59,5 +59,19 @@ describe("plural and fill", () => {
   test("leaves a slot with no value as written", () => {
     expect(fill("From {origins}", {})).toBe("From {origins}");
     expect(fill("{a} and {b}", { a: 1, b: "two" })).toBe("1 and two");
+  });
+});
+
+describe("switchPath", () => {
+  test("keeps the search when switching language", () => {
+    expect(switchPath("ja", "/cards", "q=luffy")).toBe("/ja/cards?q=luffy");
+    expect(switchPath("en", "/cards", "q=%E3%83%AB%E3%83%95%E3%82%A3")).toBe("/en/cards?q=%E3%83%AB%E3%83%95%E3%82%A3");
+  });
+  test("adds nothing when there is no search", () => {
+    expect(switchPath("fr", "/cards/set/op-10", "")).toBe("/fr/cards/set/op-10");
+    expect(switchPath("zh", "/", "")).toBe("/zh");
+  });
+  test("home with a search", () => {
+    expect(switchPath("ko", "/", "q=zoro")).toBe("/ko?q=zoro");
   });
 });

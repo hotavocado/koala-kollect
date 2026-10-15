@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getI18n } from "@/lib/i18n";
 import { MINOKOALA } from "../minokoala";
-import { Alternates } from "./_site/alternates";
+import { alternates } from "./_site/alternates";
 import { SiteHeader } from "./_site/site-header";
+
+export const metadata: Metadata = { alternates: alternates("/") };
 
 // The page a QR code on a Minokoala card lands on, so it answers three things
 // in order: what this is, the art, and the way into the cards.
@@ -11,7 +14,6 @@ export default async function Home() {
   const { t, href } = await getI18n();
   return (
     <div className="flex min-h-dvh flex-col">
-      <Alternates path="/" />
       <SiteHeader home />
 
       <main className="container flex flex-1 flex-col gap-8 pb-12 pt-4 xs:pt-10">

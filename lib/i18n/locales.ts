@@ -36,6 +36,14 @@ export function localePath(lang: Locale, path: string): string {
   return path === "/" ? `/${lang}` : `/${lang}${path}`;
 }
 
+// The language toggle's link to this page in `lang`: always /<lang>/<path>,
+// English included, so the proxy records the choice (and spells English
+// bare). The query string rides along, so switching language keeps a search.
+export function switchPath(lang: Locale, path: string, search: string): string {
+  const query = search && !search.startsWith("?") ? `?${search}` : search;
+  return `/${lang}${path === "/" ? "" : path}${query}`;
+}
+
 // Splits a pathname into its locale prefix, if any, and the site path.
 export function splitLocale(pathname: string): { lang: Locale | null; path: string } {
   const first = pathname.split("/")[1] ?? "";

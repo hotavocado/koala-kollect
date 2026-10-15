@@ -1,15 +1,15 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
-import { LOCALES, LOCALE_TAG, NATIVE_NAME, splitLocale } from "@/lib/i18n/locales";
+import { LOCALES, LOCALE_TAG, NATIVE_NAME, splitLocale, switchPath } from "@/lib/i18n/locales";
 
-// Each language links to this page in that language, English included, as
-// /<lang>/<path>: the proxy records the choice and spells English bare. Plain
+// Each language links to this page in that language (switchPath). Plain
 // links, not client navigation, because the root layout (html lang) changes.
 export function LanguageToggle() {
   const { lang, t } = useI18n();
   const { path } = splitLocale(usePathname());
+  const search = useSearchParams().toString();
   return (
     <details className="relative">
       <summary
@@ -22,7 +22,7 @@ export function LanguageToggle() {
         {LOCALES.map((l) => (
           <li key={l}>
             <a
-              href={`/${l}${path === "/" ? "" : path}`}
+              href={switchPath(l, path, search)}
               hrefLang={LOCALE_TAG[l]}
               lang={LOCALE_TAG[l]}
               aria-current={l === lang ? "true" : undefined}

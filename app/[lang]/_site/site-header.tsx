@@ -24,7 +24,7 @@ export async function SiteHeader({ back, home = false }: { back?: "cards" | "set
           </Link>
         )}
         <div className="ml-auto">
-          {/* The toggle reads the pathname, which a prerendered shell does not have. */}
+          {/* The toggle reads the pathname and query, which a prerendered shell does not have. */}
           <Suspense fallback={<span className="text-sm text-muted-foreground">{NATIVE_NAME[lang]}</span>}>
             <LanguageToggle />
           </Suspense>
