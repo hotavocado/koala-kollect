@@ -105,6 +105,8 @@ describe("cards.detail", () => {
           nameEn: null,
           releaseDate: null,
           removedAt: T,
+          isBucket: false,
+          productUrl: null,
         },
       ],
       claims: [
@@ -126,6 +128,9 @@ describe("cards.detail", () => {
           },
         },
       ],
+      // The only listing's product row never synced, so it is not a product:
+      // the origin is the claim's distribution.
+      origin: { kind: "distribution", names: ["Store Tournament Vol.4"] },
     });
   });
 

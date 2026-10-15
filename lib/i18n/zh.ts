@@ -108,6 +108,7 @@ const zh = {
     listedUnder: "列于",
     whereFrom: "出处",
     noOrigin: "尚未记录此印刷版本出处的来源。",
+    productPage: "商品页面",
   },
   listing: {
     series: "系列 {id}",

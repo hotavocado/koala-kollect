@@ -113,6 +113,7 @@ const fr = {
     listedUnder: "Répertoriée sous",
     whereFrom: "Provenance",
     noOrigin: "Aucune source n'est encore enregistrée pour la provenance de cette impression.",
+    productPage: "Page du produit",
   },
   listing: {
     series: "Série {id}",

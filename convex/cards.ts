@@ -365,6 +365,10 @@ export type CardListing = {
   nameEn: string | null;
   releaseDate: string | null;
   removedAt: string | null;
+  // A site-wide catch-all series (Promotion card and the like) that stands in
+  // for the real products. False when the product row has not synced.
+  isBucket: boolean;
+  productUrl: string | null;
 };
 
 export type CardClaim = {
@@ -386,6 +390,23 @@ export type CardClaim = {
   } | null;
 };
 
+// Where a print came from, as the page shows it: always a product when a real
+// one lists it, else the distribution (a stamped print keeps its competition
+// pack). Never both. listings and claims stay on the printing in full; this is
+// the one the page leads with.
+export type CardOrigin =
+  | {
+      kind: "product";
+      productKey: string;
+      code: string | null;
+      name: string;
+      nameEn: string | null;
+      releaseDate: string | null;
+      productUrl: string | null;
+    }
+  | { kind: "distribution"; names: string[] }
+  | null;
+
 export type CardPrinting = {
   key: string;
   rarity: string;
@@ -399,6 +420,7 @@ export type CardPrinting = {
   tcgplayerUrl: string | null;
   listings: CardListing[];
   claims: CardClaim[];
+  origin: CardOrigin;
 };
 
 export type CardRegion = {
@@ -439,7 +461,51 @@ function rank<T>(order: readonly T[], value: T): number {
   return i === -1 ? order.length : i;
 }
 
-async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPrinting> {
+// Where it is listed now first, then by release, so the original set leads.
+export function compareListings(a: CardListing, b: CardListing): number {
+  return (
+    Number(a.removedAt !== null) - Number(b.removedAt !== null) ||
+    // A listing with no known release date sorts after the dated ones.
+    (a.releaseDate === null ? 1 : 0) - (b.releaseDate === null ? 1 : 0) ||
+    (a.releaseDate ?? "").localeCompare(b.releaseDate ?? "") ||
+    a.productKey.localeCompare(b.productKey)
+  );
+}
+
+// Claims can disagree and all are kept; the strongest is shown first.
+export function compareClaims(a: CardClaim, b: CardClaim): number {
+  return rank(CONFIDENCE_ORDER, a.confidence) - rank(CONFIDENCE_ORDER, b.confidence) || a.key.localeCompare(b.key);
+}
+
+// The origin: the first real product in listing order, else the distinct
+// distribution names in claim order, else null. A bucket stands in for the
+// real products, so it is skipped here, never dropped from listings: the
+// Promo and Limited set pages are built from it. A listing whose product row
+// has not synced is not a product. A removed listing still counts, after every
+// current one: the print came from that product even if the page dropped it.
+export function pickOrigin(listings: CardListing[], claims: CardClaim[]): CardOrigin {
+  const product = [...listings]
+    .sort(compareListings)
+    .find((l): l is CardListing & { name: string } => l.name !== null && !l.isBucket);
+  if (product) {
+    return {
+      kind: "product",
+      productKey: product.productKey,
+      code: product.code,
+      name: product.name,
+      nameEn: product.nameEn,
+      releaseDate: product.releaseDate,
+      productUrl: product.productUrl,
+    };
+  }
+  const names = [
+    ...new Set([...claims].sort(compareClaims).flatMap((c) => (c.distribution ? [c.distribution.name] : []))),
+  ];
+  return names.length > 0 ? { kind: "distribution", names } : null;
+}
+
+// Exported for tests that read a printing whose card has no row.
+export async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPrinting> {
   const [locators, links, evidence] = await Promise.all([
     ctx.db
       .query("printing_locators")
@@ -468,18 +534,12 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
         nameEn: product?.name_en ?? null,
         releaseDate: product?.release_date ?? null,
         removedAt: link.removed_at ?? null,
+        isBucket: product?.is_bucket === true,
+        productUrl: product?.product_url ?? null,
       };
     }),
   );
-  // Where it is listed now first, then by release, so the original set leads.
-  listings.sort(
-    (a, b) =>
-      Number(a.removedAt !== null) - Number(b.removedAt !== null) ||
-      // A listing with no known release date sorts after the dated ones.
-      (a.releaseDate === null ? 1 : 0) - (b.releaseDate === null ? 1 : 0) ||
-      (a.releaseDate ?? "").localeCompare(b.releaseDate ?? "") ||
-      a.productKey.localeCompare(b.productKey),
-  );
+  listings.sort(compareListings);
 
   const claims: CardClaim[] = await Promise.all(
     evidence.map(async (e) => {
@@ -508,12 +568,7 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
       };
     }),
   );
-  // Claims can disagree and all are kept; the strongest is shown first.
-  claims.sort(
-    (a, b) =>
-      rank(CONFIDENCE_ORDER, a.confidence) - rank(CONFIDENCE_ORDER, b.confidence) ||
-      a.key.localeCompare(b.key),
-  );
+  claims.sort(compareClaims);
 
   return {
     key: p.key,
@@ -526,6 +581,7 @@ async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPri
     tcgplayerUrl: p.site === "tcgcsv" ? tcgplayerUrl(locators) : null,
     listings,
     claims,
+    origin: pickOrigin(listings, claims),
   };
 }
 

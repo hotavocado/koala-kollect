@@ -8,6 +8,8 @@ import {
   foreignText,
   handoutWhen,
   partialDate,
+  printOrigin,
+  productLabel,
   quantityNoteShown,
   releaseLabel,
   siteTag,
@@ -161,5 +163,53 @@ describe("card text language", () => {
   test("names the text's language in the page's", () => {
     expect(textInLine("jp", enDict)).toBe("Card text in Japanese.");
     expect(textInLine("tcgcsv", jaDict)).toBe("カードテキストは英語です。");
+  });
+});
+
+describe("productLabel", () => {
+  test("code and name, the English name first, the series id when the row never synced", () => {
+    expect(productLabel({ productKey: "jp:550117", code: "OP-17", name: "ブースターパック", nameEn: null }, enDict)).toBe("OP-17 ブースターパック");
+    expect(productLabel({ productKey: "jp:1", code: "EB-04", name: "エクストラ", nameEn: "Extra" }, enDict)).toBe("EB-04 Extra");
+    expect(productLabel({ productKey: "jp:src_ab", code: null, name: "プレイマット", nameEn: null }, enDict)).toBe("プレイマット");
+    expect(productLabel({ productKey: "en:569101", code: null, name: null, nameEn: null }, enDict)).toBe("Series 569101");
+  });
+});
+
+// The print page's origin section: one origin, never both.
+describe("printOrigin", () => {
+  const product = {
+    kind: "product" as const,
+    productKey: "jp:src_ab",
+    code: null,
+    name: "Minted",
+    nameEn: null,
+    releaseDate: null,
+    productUrl: null,
+  };
+  const listings = [{ productKey: "en:569901" }, { productKey: "jp:src_ab" }];
+  const claims = ["claim"];
+
+  test("a product origin shows no claims, and Listed under drops it but keeps the bucket", () => {
+    expect(printOrigin({ origin: product, listings, claims })).toEqual({
+      product,
+      claims: [],
+      listedUnder: [{ productKey: "en:569901" }],
+    });
+  });
+
+  test("Listed under is empty when the origin was its only listing", () => {
+    expect(printOrigin({ origin: product, listings: [{ productKey: "jp:src_ab" }], claims }).listedUnder).toEqual([]);
+  });
+
+  test("a distribution origin shows the claims and every listing", () => {
+    expect(printOrigin({ origin: { kind: "distribution", names: ["Pack"] }, listings, claims })).toEqual({
+      product: null,
+      claims,
+      listedUnder: listings,
+    });
+  });
+
+  test("no origin still shows claims whose distribution has not synced", () => {
+    expect(printOrigin({ origin: null, listings, claims })).toEqual({ product: null, claims, listedUnder: listings });
   });
 });

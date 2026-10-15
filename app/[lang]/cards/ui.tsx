@@ -1,4 +1,5 @@
 import type { Doc } from "@/convex/_generated/dataModel";
+import type { CardOrigin } from "@/convex/cards";
 import { SITE_LOCALE } from "@/convex/lang";
 import type { Dict } from "@/lib/i18n/en";
 import { fill } from "@/lib/i18n/format";
@@ -61,6 +62,40 @@ export function releaseLabel(
   const style: Intl.DateTimeFormatOptions =
     precision === "month" ? { month: "short", year: "numeric" } : { dateStyle: "medium" };
   return mark(new Date(`${set.releaseDate}T00:00:00Z`).toLocaleDateString(tag, { timeZone: "UTC", ...style }));
+}
+
+// What to call a product: its code and name, the English name first where the
+// site gives one. A listing whose product row has not synced shows by its
+// series id. The print page's listings and a print's origin read the same.
+export function productLabel(
+  product: { productKey: string; code: string | null; name: string | null; nameEn: string | null },
+  t: Dict,
+): string {
+  const name =
+    product.nameEn ??
+    product.name ??
+    fill(t.listing.series, { id: product.productKey.split(":")[1] ?? product.productKey });
+  return [product.code, name].filter(Boolean).join(" ");
+}
+
+type ProductOrigin = Extract<CardOrigin, { kind: "product" }>;
+
+// What the print page shows of a print's origin. A product origin is shown on
+// its own and the claims are not (never both); a distribution origin shows the
+// claims, and so does no origin at all: a claim whose distribution has not
+// synced is still evidence. "Listed under" keeps every other listing, buckets
+// included, and drops the one the origin already names.
+export function printOrigin<L extends { productKey: string }, C>(p: {
+  origin: CardOrigin;
+  listings: L[];
+  claims: C[];
+}): { product: ProductOrigin | null; claims: C[]; listedUnder: L[] } {
+  const product = p.origin?.kind === "product" ? p.origin : null;
+  return {
+    product,
+    claims: product ? [] : p.claims,
+    listedUnder: product ? p.listings.filter((l) => l.productKey !== product.productKey) : p.listings,
+  };
 }
 
 // A handout's dates, which a source may give only to the year or month

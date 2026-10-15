@@ -7,7 +7,7 @@ import { CardImage } from "../card-image";
 import type { CardDetail, CardPrinting } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
 import { CardFace, OfficialLink } from "../printing";
-import { cardLabel, cnOnly, ColorDots, foreignText, Notice, siteTag, textInLine } from "../ui";
+import { cardLabel, cnOnly, ColorDots, foreignText, Notice, productLabel, siteTag, textInLine } from "../ui";
 
 // Same guard as the browse page: the Convex hooks throw without a deployment.
 export function CardDetailView({ cardKey }: { cardKey: string }) {
@@ -158,7 +158,6 @@ function Detail({ card }: { card: CardDetail }) {
 // what it is; its listings and origin claims live on the print page.
 function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: string; printing: CardPrinting }) {
   const { t, href, fill, plural } = useI18n();
-  const origins = [...new Set(p.claims.map((c) => c.distribution?.name).filter(Boolean))];
   return (
     <Link
       href={href(`/cards/${cardKey}/${p.key}`)}
@@ -187,10 +186,20 @@ function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: 
           </p>
         )}
 
-        {p.claims.length > 0 && (
+        {/* The origin, one of the two, never both: the real product when one
+            lists the print, else the distribution and how many sources say so. */}
+        {p.origin?.kind === "product" && (
+          <p className="text-sm text-muted-foreground">{fill(t.card.from, { origins: productLabel(p.origin, t) })}</p>
+        )}
+        {p.origin?.kind === "distribution" && (
           <p className="text-sm text-muted-foreground">
-            {origins.length > 0 ? fill(t.card.from, { origins: origins.join(", ") }) : t.card.whereFrom} ·{" "}
-            {plural(t.count.sources, p.claims.length)}
+            {fill(t.card.from, { origins: p.origin.names.join(", ") })} · {plural(t.count.sources, p.claims.length)}
+          </p>
+        )}
+        {/* Claims whose distribution has not synced yet still count as sources. */}
+        {p.origin === null && p.claims.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t.card.whereFrom} · {plural(t.count.sources, p.claims.length)}
           </p>
         )}
       </div>
