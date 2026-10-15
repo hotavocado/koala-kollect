@@ -18,6 +18,7 @@ import type * as crons from "../crons.js";
 import type * as dataSync from "../dataSync.js";
 import type * as designCore from "../designCore.js";
 import type * as lang from "../lang.js";
+import type * as priceCapture from "../priceCapture.js";
 import type * as sitemap from "../sitemap.js";
 import type * as syncCore from "../syncCore.js";
 
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   dataSync: typeof dataSync;
   designCore: typeof designCore;
   lang: typeof lang;
+  priceCapture: typeof priceCapture;
   sitemap: typeof sitemap;
   syncCore: typeof syncCore;
 }>;
