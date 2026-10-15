@@ -285,7 +285,7 @@ export default defineSchema({
     // page that names it (gold, black, ...). A design's stamp colour is read
     // through its printings' distributions, never stored on the design.
     stamp_color: v.optional(v.union(v.string(), v.null())),
-    stamp_color_source: v.optional(v.union(v.string(), v.null())), // that competition page's URL
+    stamp_color_source: v.optional(v.union(v.string(), v.null())), // that competition page's URL, or the literal "reviewed"
   })
     .index("by_key", ["key"])
     .index("by_region", ["region"]),
