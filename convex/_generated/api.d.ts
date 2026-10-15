@@ -11,11 +11,13 @@
 import type * as cardSearch from "../cardSearch.js";
 import type * as cardSearchCore from "../cardSearchCore.js";
 import type * as cardSets from "../cardSets.js";
-import type * as cardSummary from "../cardSummary.js";
 import type * as cardSetsCore from "../cardSetsCore.js";
+import type * as cardSummary from "../cardSummary.js";
 import type * as cards from "../cards.js";
 import type * as crons from "../crons.js";
 import type * as dataSync from "../dataSync.js";
+import type * as lang from "../lang.js";
+import type * as sitemap from "../sitemap.js";
 import type * as syncCore from "../syncCore.js";
 
 import type {
@@ -28,11 +30,13 @@ declare const fullApi: ApiFromModules<{
   cardSearch: typeof cardSearch;
   cardSearchCore: typeof cardSearchCore;
   cardSets: typeof cardSets;
-  cardSummary: typeof cardSummary;
   cardSetsCore: typeof cardSetsCore;
+  cardSummary: typeof cardSummary;
   cards: typeof cards;
   crons: typeof crons;
   dataSync: typeof dataSync;
+  lang: typeof lang;
+  sitemap: typeof sitemap;
   syncCore: typeof syncCore;
 }>;
 

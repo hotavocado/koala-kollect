@@ -552,9 +552,15 @@ export type PrintDetail = {
   printing: CardPrinting;
 };
 
+// Whether a print page renders for this printing under this card: the printing
+// exists and belongs to the card in the URL, so a print link never renders
+// under another card. The sitemap lists prints through the same test.
+export function printBelongsTo(p: Doc<"printings"> | null, cardKey: string): p is Doc<"printings"> {
+  return p !== null && p.card_key === cardKey;
+}
+
 // One print's own page. A printing row is the print: one release on one site,
 // so identical-looking reprints and the same promo on two sites stay apart.
-// The card key is checked so a print link never renders under another card.
 export const print = query({
   args: { cardKey: v.string(), printKey: v.string(), lang: v.optional(locale) },
   handler: async (ctx, { cardKey, printKey, lang = "en" }): Promise<PrintDetail | null> => {
@@ -562,7 +568,7 @@ export const print = query({
       .query("printings")
       .withIndex("by_key", (q) => q.eq("key", printKey))
       .unique();
-    if (!p || p.card_key !== cardKey) return null;
+    if (!printBelongsTo(p, cardKey)) return null;
     const card = await ctx.db
       .query("cards")
       .withIndex("by_key", (q) => q.eq("key", cardKey))
