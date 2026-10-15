@@ -6,7 +6,7 @@
 {"type":"printing_locator","record":{"key":"en:OP01-001_p1","printing_key":"prt_000000000001","site":"en","image_id":"OP01-001_p1","suffix_family":"p","suffix_n":1,"first_seen_at":"2026-10-08T00:00:00Z"}}
 {"type":"printing_locator","record":{"key":"tcgcsv:512346:Foil","printing_key":"prt_00000000d0d1","site":"tcgcsv","image_id":"512346:Foil","first_seen_at":"2026-10-08T00:00:00Z"}}
 {"type":"product","record":{"key":"jp:550117","site":"jp","series_id":"550117","code":"OP-17","name":"ブースターパック","kind":"booster","release_date":"2026-08-22","release_date_source":"https://www.onepiece-cardgame.com/products/boosters/op17/","first_seen_at":"2026-10-08T00:00:00Z"}}
-{"type":"product","record":{"key":"jp:550801","site":"jp","series_id":"550801","name":"その他商品カード","kind":"limited","first_seen_at":"2026-10-08T00:00:00Z"}}
+{"type":"product","record":{"key":"jp:550801","site":"jp","series_id":"550801","name":"その他商品カード","kind":"limited","first_seen_at":"2026-10-08T00:00:00Z","is_bucket":true}}
 {"type":"printing_product","record":{"key":"prt_000000000001@en:569101","printing_key":"prt_000000000001","product_key":"en:569101","first_seen_at":"2026-10-08T00:00:00Z","removed_at":"2026-10-08T00:00:00Z"}}
 {"type":"distribution","record":{"key":"dist_0000000000a1","site":"en","region":"en","kind":"store_tournament","name":"Store Tournament Vol.4","source_url":"https://en.onepiece-cardgame.com/events/2025/store_tournament_vol4.php"}}
 {"type":"printing_distribution","record":{"key":"ev_0123456789abcdef","printing_key":"prt_000000000001","distribution_key":"dist_0000000000a1","source":"official_event","source_url":"https://en.onepiece-cardgame.com/events/2025/store_tournament_vol4.php","quote":"Participation Pack 2025 Vol.4 (4 types)","confidence":"authoritative","observed_at":"2026-10-08T00:00:00Z","tier":"participant","starts_on":"2025","quantity_note":"(4 types)"}}
@@ -44,3 +44,4 @@
 {"type":"printing_design","record":{"key":"prt_000000000001","printing_key":"prt_000000000001","design_key":"dsn_000000000001","method":"image_hash","confidence":"corroborated"}}
 {"type":"set","record":{"key":"OP-17","code":"OP-17"}}
 {"type":"product_set","record":{"key":"cn:131@OP-17","product_key":"cn:131","set_key":"OP-17"}}
+{"type":"product","record":{"key":"en:src_0123456789ab","site":"en","name":"Playmat and Storage Box Set -Nami-","kind":"limited","first_seen_at":"2026-10-15T00:00:00Z"}}

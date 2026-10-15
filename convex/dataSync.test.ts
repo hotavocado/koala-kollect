@@ -13,8 +13,9 @@ import { type ManifestType, RETIRED_TYPE, type RecordType, SYNCED_TABLES, TYPE_T
 // still reads the contract's retired_printing row. Refresh the copy when the
 // contract changes. The app ships contract v2 first, so until data main carries
 // it the copy is hand-edited to v2: the printing_link row is gone, and the
-// design, printing_design, set and product_set rows, printing.image_hash and
-// distribution.stamp_color are written to the agreed fields.
+// design, printing_design, set and product_set rows, printing.image_hash,
+// distribution.stamp_color, product.is_bucket and a product with no series_id
+// (minted from source text) are written to the agreed fields.
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
 const COMMIT_A = "a".repeat(40);

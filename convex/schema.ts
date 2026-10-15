@@ -203,9 +203,12 @@ export default defineSchema({
     .index("by_printing", ["printing_key"]),
 
   products: defineTable({
-    key: v.string(), // {site}:{series_id}
+    key: v.string(), // {site}:{series_id}, or {site}:src_{hash} for a product named only in source text
     site,
-    series_id: v.string(),
+    series_id: v.optional(v.string()), // absent on a product minted from source text
+    // True on a site-wide catch-all series (promo or other product cards) that
+    // stands in for the real products; absent everywhere else.
+    is_bucket: v.optional(v.boolean()),
     code: v.optional(v.string()), // OP-17, EB-04, OPC-16
     name: v.string(),
     name_en: v.optional(v.string()),
