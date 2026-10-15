@@ -133,8 +133,8 @@ printings plus the summary chain, the UI, PriceCharting last.
 
 ## Status at the 2026-10-15 halt (Mike, general 93685)
 
-- Capture is live on prod (koala #44, db670fc). One row so far: day 2026-10-15, 1000 groups,
-  7500 rows, tcgcsv updated 2026-10-15T20:06:01+0000. The hourly fire at 10:30:52 PM (UTC) read tcgcsv's
+- Capture is live on prod (koala #44, db670fc). One row so far: day 2026-10-15, 87 groups,
+  7500 rows, tcgcsv updated 2026-10-15T20:06:01+0000. The hourly fire at 22:30:52Z read tcgcsv's
   last-updated, found it unchanged, and wrote nothing, as designed. The next row-writing fire
   is expected around 20:30Z on the day after, after tcgcsv's ~20:00Z update.
 - The cron is a Convex cron, not a VM crontab line, so it keeps capturing through the halt.
