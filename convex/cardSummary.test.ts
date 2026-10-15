@@ -90,8 +90,19 @@ describe("cardSummary.chain", () => {
       names: { en: "Nami" },
       printings: 2,
       image_url: "https://example.test/en/prt_000000000001.png",
+      designs: 0,
+      languages: 1,
+      unreviewed: 2,
     });
-    expect(cards.find((c) => c.key === card(2).key)?.summary).toEqual({ name: null, names: {}, printings: 0, image_url: null });
+    expect(cards.find((c) => c.key === card(2).key)?.summary).toEqual({
+      name: null,
+      names: {},
+      printings: 0,
+      image_url: null,
+      designs: 0,
+      languages: 0,
+      unreviewed: 0,
+    });
 
     const syncId = await t.run(async (ctx) =>
       ctx.db.insert("data_syncs", { data_commit: "a".repeat(40), manifest_sha256: "b".repeat(64), started_at: T, status: "ok" }),

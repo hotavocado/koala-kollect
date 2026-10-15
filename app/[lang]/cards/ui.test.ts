@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vitest";
 import enDict from "@/lib/i18n/en";
 import jaDict from "@/lib/i18n/ja";
+import { plural } from "@/lib/i18n/format";
 import {
   cardLabel,
   cnOnly,
   confidenceShown,
+  countLine,
   foreignText,
   handoutWhen,
   partialDate,
@@ -211,5 +213,32 @@ describe("printOrigin", () => {
 
   test("no origin still shows claims whose distribution has not synced", () => {
     expect(printOrigin({ origin: null, listings, claims })).toEqual({ product: null, claims, listedUnder: listings });
+  });
+});
+
+describe("countLine", () => {
+  const en = (entry: Parameters<typeof plural>[1], n: number) => plural("en", entry, n);
+  const ja = (entry: Parameters<typeof plural>[1], n: number) => plural("ja", entry, n);
+
+  test("no designs: the printing count alone", () => {
+    expect(countLine(12, null, enDict, en)).toBe("12 printings");
+  });
+
+  test("designs: the design line, with the unreviewed count only when there are some", () => {
+    expect(countLine(12, { designs: 2, languages: 3, unreviewed: 4 }, enDict, en)).toBe(
+      "2 designs across 3 languages, 12 printings · 4 unreviewed",
+    );
+    expect(countLine(12, { designs: 2, languages: 3, unreviewed: 0 }, enDict, en)).toBe(
+      "2 designs across 3 languages, 12 printings",
+    );
+    expect(countLine(1, { designs: 1, languages: 1, unreviewed: 0 }, enDict, en)).toBe(
+      "1 design across 1 language, 1 printing",
+    );
+  });
+
+  test("each language orders its own line", () => {
+    expect(countLine(12, { designs: 2, languages: 3, unreviewed: 4 }, jaDict, ja)).toBe(
+      "3言語で2デザイン、12プリント · 未確認4件",
+    );
   });
 });

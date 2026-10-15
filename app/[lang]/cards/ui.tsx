@@ -1,8 +1,9 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import type { CardOrigin } from "@/convex/cards";
+import type { DesignCounts } from "@/convex/designCore";
 import { SITE_LOCALE } from "@/convex/lang";
 import type { Dict } from "@/lib/i18n/en";
-import { fill } from "@/lib/i18n/format";
+import { fill, type Plural } from "@/lib/i18n/format";
 import { useI18n } from "@/lib/i18n/client";
 import { LOCALE_TAG, type Locale } from "@/lib/i18n/locales";
 
@@ -145,6 +146,25 @@ export function confidenceShown<C extends string>(source: string, confidence: C)
 // Every printing of the card is on cn's list and no other site's (P-122 to
 // P-134, Special Card Set vol.2). Such a card has only Chinese text and no
 // official page to link to, and the card page says why.
+// The card's count line, on its tile and its page. Once the card has a design
+// it reads "2 designs across 3 languages, 12 printings", plus " · 4 unreviewed"
+// while printings sit outside every design; until then, the printing count.
+export function countLine(
+  printings: number,
+  designs: DesignCounts | null,
+  t: Dict,
+  plural: (entry: Plural, n: number) => string,
+): string {
+  const total = plural(t.count.printings, printings);
+  if (!designs) return total;
+  const line = fill(t.card.designLine, {
+    designs: plural(t.count.designs, designs.designs),
+    languages: plural(t.count.languages, designs.languages),
+    printings: total,
+  });
+  return designs.unreviewed > 0 ? `${line} · ${plural(t.count.unreviewed, designs.unreviewed)}` : line;
+}
+
 export function cnOnly(regions: { language: string }[]): boolean {
   return regions.length > 0 && regions.every((r) => r.language === "cn");
 }

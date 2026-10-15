@@ -3,6 +3,15 @@ import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { locale, SITE_ORDER, type Locale } from "./lang";
+import {
+  type DesignCounts,
+  designCounts,
+  exclusiveLanguage,
+  type Language,
+  LANGUAGE_OF,
+  LANGUAGE_ORDER,
+  readDesigns,
+} from "./designCore";
 import { keepsShared } from "../lib/set-slug";
 
 // Public reads for the browse page. Every table here is a mirror written only
@@ -27,6 +36,9 @@ export type BrowseCard = {
   nameSite: Doc<"card_observations">["site"] | null;
   imageUrl: string | null;
   printings: number;
+  // Null until the card has a design row, and on a summary stored before
+  // designs existed: the tile then shows the printing count alone.
+  designs: DesignCounts | null;
 };
 
 // The current observation whose printed text the page shows. An errata closes
@@ -131,6 +143,11 @@ export async function browseRow(
       nameSite,
       imageUrl: imageFrom?.length ? cardImage(imageFrom, order) : summary.image_url,
       printings: summary.printings,
+      designs: withDesigns({
+        designs: summary.designs ?? 0,
+        languages: summary.languages ?? 0,
+        unreviewed: summary.unreviewed ?? 0,
+      }),
     };
   }
   // No summary yet (a card the chain has not reached): read them live.
@@ -151,7 +168,14 @@ export async function browseRow(
     nameSite: shown?.site ?? null,
     imageUrl: cardImage(imageFrom?.length ? imageFrom : printings, order),
     printings: printings.length,
+    designs: withDesigns(designCounts(printings, await readDesigns(ctx.db, card.key, printings))),
   };
+}
+
+// A card with no design row keeps today's printing count: zero designs would
+// read as if the card had none, when they are only not reviewed yet.
+function withDesigns(counts: DesignCounts): DesignCounts | null {
+  return counts.designs > 0 ? counts : null;
 }
 
 // The set index: one row per set across sites (and per code of a product with
@@ -343,19 +367,8 @@ export const lastSync = query({
 // the site that lists it, each with its verbatim provenance string, the series
 // pages it sits under, and the claims about where it was handed out.
 
-// The card page groups printings by language, not by site. tcgcsv is a
-// TCGplayer catalogue, not a language, and its only One Piece category is
-// English, so its DON printings and the stamped Release Event prints no
-// official list carries sit under English, after the official en printings.
-export type Language = Exclude<Doc<"printings">["site"], "tcgcsv">;
-const LANGUAGE_OF: Record<Doc<"printings">["site"], Language> = {
-  en: "en",
-  jp: "jp",
-  cn: "cn",
-  tcgcsv: "en",
-};
-// Language order on the page: English first, as on the browse page.
-const LANGUAGE_ORDER: Language[] = ["en", "jp", "cn"];
+// The card page groups printings by language (designCore.LANGUAGE_OF).
+export type { Language };
 // Within a language, the official list's printings before TCGplayer's.
 const REGION_ORDER: Doc<"printings">["site"][] = ["en", "jp", "cn", "tcgcsv"];
 const VARIANT_ORDER: Doc<"printings">["variant"][] = [
@@ -452,6 +465,17 @@ export type CardRegion = {
   printings: CardPrinting[];
 };
 
+// One art of the card, its printings by language. exclusive is the language
+// it is exclusive to (designCore.exclusiveLanguage); defaultLanguage is the
+// language the page opens it on, the first in the reader's SITE_ORDER it has.
+export type CardDesign = {
+  key: string;
+  stamp: string | null;
+  exclusive: Language | null;
+  defaultLanguage: Language;
+  regions: CardRegion[];
+};
+
 export type CardDetail = {
   key: string;
   number: string | null;
@@ -474,7 +498,14 @@ export type CardDetail = {
   imageUrl: string | null;
   // The official list entry on the best-ranked site that prints the card.
   officialUrl: string | null;
+  // Every printing by language, designs or not.
   regions: CardRegion[];
+  // Empty until the card has a design row; the page then keeps the
+  // per-language layout of regions.
+  designs: CardDesign[];
+  // Printings no design holds, by language.
+  unreviewed: CardRegion[];
+  counts: DesignCounts;
 };
 
 function rank<T>(order: readonly T[], value: T): number {
@@ -711,20 +742,53 @@ export const detail = query({
         (a.printing.imageIds[0] ?? "").localeCompare(b.printing.imageIds[0] ?? "", "en", { numeric: true }) ||
         a.printing.key.localeCompare(b.printing.key),
     );
-    const regions: CardRegion[] = [];
-    for (const { site, printing } of loaded) {
-      const last = regions[regions.length - 1];
-      const language = LANGUAGE_OF[site];
-      if (last?.language === language) last.printings.push(printing);
-      // The link is the first printing's site: an official one when the
-      // language has any (they sort first), so English holding only
-      // TCGplayer's printings gets no official link.
-      else regions.push({ language, listUrl: listUrl(site, card.number), printings: [printing] });
+    const toRegions = (rows: typeof loaded): CardRegion[] => {
+      const regions: CardRegion[] = [];
+      for (const { site, printing } of rows) {
+        const last = regions[regions.length - 1];
+        const language = LANGUAGE_OF[site];
+        if (last?.language === language) last.printings.push(printing);
+        // The link is the first printing's site: an official one when the
+        // language has any (they sort first), so English holding only
+        // TCGplayer's printings gets no official link.
+        else regions.push({ language, listUrl: listUrl(site, card.number), printings: [printing] });
+      }
+      return regions;
+    };
+
+    // Designs in the order of their first printing, unstamped first.
+    const designOf = await readDesigns(ctx.db, card.key, printings);
+    const members = new Map<string, { design: Doc<"designs">; rows: typeof loaded }>();
+    const pending: typeof loaded = [];
+    for (const row of loaded) {
+      const design = designOf.get(row.printing.key);
+      if (!design) {
+        pending.push(row);
+        continue;
+      }
+      const group = members.get(design.key);
+      if (group) group.rows.push(row);
+      else members.set(design.key, { design, rows: [row] });
     }
+    const languagesOf = (rows: typeof loaded) => new Set(rows.map((r) => LANGUAGE_OF[r.site]));
+    const cardLanguages = languagesOf(loaded);
+    const pendingLanguages = languagesOf(pending);
+    const order = SITE_ORDER[lang];
+    const designs: CardDesign[] = [...members.values()]
+      .sort((a, b) => Number(Boolean(a.design.stamp)) - Number(Boolean(b.design.stamp)))
+      .map(({ design, rows }) => {
+        const languages = languagesOf(rows);
+        return {
+          key: design.key,
+          stamp: design.stamp || null,
+          exclusive: exclusiveLanguage(design.exclusive_override, languages, cardLanguages, pendingLanguages),
+          defaultLanguage: order.map((s) => LANGUAGE_OF[s]).find((l) => languages.has(l)) ?? LANGUAGE_OF[rows[0].site],
+          regions: toRegions(rows),
+        };
+      });
 
     // Name, types, effect and trigger all from one observation, so the text
     // block reads in one language.
-    const order = SITE_ORDER[lang];
     const obs = pickObservation(observations, order);
     const ranked = rankPrintings(printings, order);
     return {
@@ -750,7 +814,10 @@ export const detail = query({
         : null,
       imageUrl: cardImage(printings, order),
       officialUrl: ranked.map((p) => listUrl(p.site, card.number)).find(Boolean) ?? null,
-      regions,
+      regions: toRegions(loaded),
+      designs,
+      unreviewed: toRegions(pending),
+      counts: designCounts(printings, designOf),
     };
   },
 });

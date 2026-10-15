@@ -55,3 +55,31 @@ tell a rule from an accident.
   one pure rule in `lib/set-slug.ts` (drop cn's letter, take a combined code's
   first set). The set row keeps those old slugs as `aliases` so DON cards that
   `don_sets` still places on them show on the page they moved to.
+
+## 2026-10-15: the card page grouped by design
+
+- **No design rows, no change.** A card with no `printing_designs` row keeps
+  the per-language layout and the plain "z printings" line, on its page and its
+  tile. "0 designs across 3 languages" would read as if the card had none, when
+  they are only not reviewed yet. The design layout switches on per card with
+  its first row.
+- **Counts.** "x designs across y languages, z printings", plus " · n
+  unreviewed" only when n > 0. x counts designs holding a printing; y counts
+  the languages the card is printed in, with tcgcsv as English, so a card with
+  only en and tcgcsv printings is one language; n counts printings no design
+  holds. A row naming a design that is not this card's leaves the printing
+  unreviewed.
+- **Exclusive.** A design is exclusive to a language when all its printings are
+  in that language, the card is printed in another, and no unreviewed printing
+  sits in a language the design lacks: until it is reviewed, that printing
+  could join the design and widen it, so the answer is unknown and there is no
+  star. An unreviewed printing in the design's own language changes nothing.
+  `exclusive_override` wins both ways; a true override still needs the design
+  in one language, since the label names it. The label is visible text,
+  "★ <Language> exclusive", never a tooltip.
+- **Order and chips.** Unstamped designs first, then the order of each
+  design's first printing. Language chips only on a design in more than one
+  language, opening on the first language in the reader's `SITE_ORDER` the
+  design has. Unreviewed printings sit below, by language, as today.
+- The rules live in convex/designCore.ts and `countLine`
+  (app/[lang]/cards/ui.tsx), unit-tested without a DOM.

@@ -48,6 +48,9 @@ const zh = {
     cards: plural({ other: "{n} 张卡" }),
     printings: plural({ other: "{n} 个印刷版本" }),
     sources: plural({ other: "{n} 个来源" }),
+    designs: plural({ other: "{n} 种设计" }),
+    languages: plural({ other: "{n} 种语言" }),
+    unreviewed: plural({ other: "{n} 个未审核" }),
   },
   finder: {
     label: "按编号或名称查找卡牌",
@@ -95,6 +98,9 @@ const zh = {
     noSourceList: "卡表未列出此印刷版本的来源。",
     from: "来自{origins}",
     whereFrom: "出处",
+    designLine: "{languages}共 {designs}，{printings}",
+    exclusive: "★ {language}独有",
+    unreviewed: "尚未归入设计",
   },
   print: {
     notFoundTitle: "未找到印刷版本",

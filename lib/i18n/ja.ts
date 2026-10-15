@@ -49,6 +49,9 @@ const ja = {
     cards: plural({ other: "{n}枚" }),
     printings: plural({ other: "{n}プリント" }),
     sources: plural({ other: "出典{n}件" }),
+    designs: plural({ other: "{n}デザイン" }),
+    languages: plural({ other: "{n}言語" }),
+    unreviewed: plural({ other: "未確認{n}件" }),
   },
   finder: {
     label: "カード番号または名前でカードを探す",
@@ -98,6 +101,9 @@ const ja = {
     noSourceList: "カードリストにはこのプリントの出典が記載されていません。",
     from: "{origins}より",
     whereFrom: "出どころ",
+    designLine: "{languages}で{designs}、{printings}",
+    exclusive: "★ {language}限定",
+    unreviewed: "デザイン未分類",
   },
   print: {
     notFoundTitle: "プリントが見つかりません",
