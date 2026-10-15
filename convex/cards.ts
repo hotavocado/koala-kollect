@@ -504,7 +504,8 @@ export function pickOrigin(listings: CardListing[], claims: CardClaim[]): CardOr
   return names.length > 0 ? { kind: "distribution", names } : null;
 }
 
-async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPrinting> {
+// Exported for tests that read a printing whose card has no row.
+export async function loadPrinting(ctx: QueryCtx, p: Doc<"printings">): Promise<CardPrinting> {
   const [locators, links, evidence] = await Promise.all([
     ctx.db
       .query("printing_locators")

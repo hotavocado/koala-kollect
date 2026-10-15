@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { internal } from "./_generated/api";
 import fixture from "./fixtures/contract-valid.jsonl?raw";
+import fixtureV2 from "./fixtures/contract-v2-valid.jsonl?raw";
 import schema from "./schema";
 import { type ManifestType, RETIRED_TYPE, type RecordType, SYNCED_TABLES, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
 
@@ -47,9 +48,9 @@ const DON_SET_EXAMPLE = {
   },
 };
 
-function fixtureFiles(): Record<string, { type: ManifestType; lines: string[] }> {
+function fixtureFiles(text: string = fixture): Record<string, { type: ManifestType; lines: string[] }> {
   const files: Record<string, { type: ManifestType; lines: string[] }> = {};
-  const lines = fixture.trim().split("\n");
+  const lines = text.trim().split("\n");
   if (!lines.some((l) => (JSON.parse(l) as { type: string }).type === "don_set")) lines.push(JSON.stringify(DON_SET_EXAMPLE));
   for (const line of lines) {
     const { type, record } = JSON.parse(line) as { type: string; record: Rec };
@@ -1067,5 +1068,190 @@ describe("don_sets", () => {
     await t.run(async (ctx) => void (await ctx.db.insert("don_sets", row as never)));
     const bad = { ...row, source: "guess" };
     await expect(t.run(async (ctx) => void (await ctx.db.insert("don_sets", bad as never)))).rejects.toThrow();
+  });
+});
+
+// fixtures/contract-v2-valid.jsonl is koala-kollect-data's examples/valid.jsonl
+// byte for byte at 56ff7c3 (data PR #26, contract v2). Unlike
+// contract-valid.jsonl it is never hand-edited: these tests sync it as the data
+// repo wrote it, so they say what the app does with v2 as it stands.
+describe("contract v2 examples (data 56ff7c3)", () => {
+  type Row = { type: string; record: Rec };
+  const rows = (): Row[] => fixtureV2.trim().split("\n").map((l) => JSON.parse(l) as Row);
+  // Audit records the data repo keeps under runs/, never in the manifest.
+  const AUDIT_ONLY: ReadonlySet<string> = new Set(["ingest_run"]);
+  // The one v2 row convex/schema.ts refuses (see the test below).
+  const REFUSED_DESIGN = "prt_000000000001";
+  const isRefused = (r: Row) => r.type === "printing_design" && r.record.key === REFUSED_DESIGN;
+  const filesFrom = (keep: (r: Row) => boolean) =>
+    fixtureFiles(rows().filter(keep).map((r) => JSON.stringify(r)).join("\n"));
+
+  test("every type in the file is a synced table, the retired list, or audit only, so the helper drops nothing silently", () => {
+    const types = [...new Set(rows().map((r) => r.type))].sort();
+    expect(types).toEqual([
+      "card",
+      "card_observation",
+      "design",
+      "distribution",
+      "don_set",
+      "ingest_run",
+      "printing",
+      "printing_design",
+      "printing_distribution",
+      "printing_locator",
+      "printing_product",
+      "product",
+      "product_set",
+      "retired_printing",
+      "set",
+    ]);
+    for (const type of types) expect(type in TYPE_TO_TABLE || type === RETIRED_TYPE || AUDIT_ONLY.has(type), type).toBe(true);
+    // Every mapped table has a row in v2, so nothing is exercised by absence.
+    for (const type of Object.keys(TYPE_TO_TABLE)) expect(types, type).toContain(type);
+    // fixtureFiles writes every row but the audit ones: the file carries its
+    // own don_set, so the stand-in is not added either.
+    const written = Object.values(fixtureFiles(fixtureV2)).reduce((n, f) => n + f.lines.length, 0);
+    expect(written).toBe(rows().filter((r) => !AUDIT_ONLY.has(r.type)).length);
+  });
+
+  test("the file is the 58 rows of data 56ff7c3", () => {
+    expect(rows()).toHaveLength(58);
+  });
+
+  test("the enum values the rows touch", () => {
+    const seen: Record<string, string[]> = {};
+    const note = (type: string, field: string) => {
+      const vals = new Set<string>();
+      for (const r of rows()) {
+        if (r.type !== type) continue;
+        const v = r.record[field];
+        for (const x of Array.isArray(v) ? v : [v]) vals.add(x === undefined ? "<absent>" : String(x));
+      }
+      seen[`${type}.${field}`] = [...vals].sort();
+    };
+    note("card", "category");
+    note("card", "facts_site");
+    note("card_observation", "site");
+    note("card_observation", "lang");
+    note("card_observation", "attributes");
+    note("printing", "site");
+    note("printing", "variant");
+    note("printing_locator", "site");
+    note("printing_locator", "suffix_family");
+    note("product", "site");
+    note("product", "kind");
+    note("product", "is_bucket");
+    note("product", "series_id");
+    note("distribution", "site");
+    note("distribution", "region");
+    note("distribution", "kind");
+    note("distribution", "stamp_color");
+    note("distribution", "stamp_color_source");
+    note("printing_distribution", "source");
+    note("printing_distribution", "confidence");
+    note("printing_distribution", "tier");
+    note("printing_design", "method");
+    note("printing_design", "confidence");
+    note("design", "stamp");
+    note("design", "exclusive_override");
+    note("don_set", "source");
+    note("retired_printing", "reason");
+    expect(seen).toEqual({
+      "card.category": ["don", "leader"],
+      "card.facts_site": ["jp", "tcgcsv"],
+      "card_observation.site": ["cn", "en", "tcgcsv"],
+      "card_observation.lang": ["en", "zh-Hans"],
+      "card_observation.attributes": ["?", "slash"],
+      "printing.site": ["cn", "en", "jp", "tcgcsv"],
+      "printing.variant": ["base", "foil", "gold", "normal", "parallel", "stamped"],
+      "printing_locator.site": ["cn", "en", "tcgcsv"],
+      "printing_locator.suffix_family": ["<absent>", "p"],
+      "product.site": ["cn", "en", "jp"],
+      "product.kind": ["booster", "limited", "promo_bucket"],
+      "product.is_bucket": ["<absent>", "true"],
+      // A product minted from source text has no series id.
+      "product.series_id": ["131", "550117", "550801", "569901", "85", "<absent>"],
+      "distribution.site": ["cn", "en", "jp", "tcgcsv"],
+      "distribution.region": ["cn", "en", "jp"],
+      "distribution.kind": ["championship", "event_pack", "store_tournament"],
+      "distribution.stamp_color": ["<absent>", "black", "gold"],
+      "distribution.stamp_color_source": ["<absent>", "https://www.onepiece-cardgame.com/events/cs/", "reviewed"],
+      "printing_distribution.source": ["official_event", "tcgcsv"],
+      "printing_distribution.confidence": ["authoritative", "corroborated"],
+      "printing_distribution.tier": ["<absent>", "participant"],
+      "printing_design.method": ["manual"],
+      // The contract's printing_design has no confidence field at all.
+      "printing_design.confidence": ["<absent>"],
+      "design.stamp": ["CHAMPIONSHIP 25-26"],
+      "design.exclusive_override": ["false"],
+      "don_set.source": ["group"],
+      "retired_printing.reason": ["duplicate_source_record", "site_retired"],
+    });
+  });
+
+  // CROSS-REPO FINDING for the data owner. The contract's printing_design
+  // (schema/v1.schema.json at 56ff7c3) is {key, printing_key, design_key,
+  // method, reviewed_by?, reviewed_at?} with additionalProperties false: it
+  // has no confidence. convex/schema.ts printing_designs requires confidence,
+  // so the first reviewed row the data repo ships fails pass 2 and closes the
+  // sync "failed" (data main ships printing_designs at 0 rows, so it has not
+  // happened yet). The schema is not changed here; this records the refusal.
+  test("each row on its own: only the printing_design row is refused, for its missing confidence", async () => {
+    const t = convexTest(schema, modules);
+    const refused: string[] = [];
+    for (const r of rows()) {
+      if (!(r.type in TYPE_TO_TABLE)) continue;
+      const table = TYPE_TO_TABLE[r.type as RecordType];
+      try {
+        await t.run(async (ctx) => void (await ctx.db.insert(table, r.record as never)));
+      } catch (e) {
+        refused.push(`${r.type} ${r.record.key}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).toMatch(new RegExp(`^printing_design ${REFUSED_DESIGN}: .*confidence`, "s"));
+  });
+
+  test("synced unchanged, the run fails on that printing_design row", async () => {
+    const t = convexTest(schema, modules);
+    serve({ [COMMIT_A]: await repoAt(fixtureFiles(fixtureV2)) });
+
+    const r = await sync(t, { commit: COMMIT_A });
+
+    expect(r.status).toBe("failed");
+    expect(r.detail).toMatch(/confidence/);
+    const [row] = await syncs(t);
+    expect(row).toMatchObject({ status: "failed" });
+    expect(row.refusal).toMatch(/confidence/);
+    expect(await t.run(async (ctx) => await ctx.db.query("printing_designs").collect())).toEqual([]);
+  });
+
+  test("every other row lands: without that one row the sync is ok and each table holds its rows", async () => {
+    expect(rows().filter(isRefused)).toHaveLength(1);
+    const t = convexTest(schema, modules);
+    const files = filesFrom((r) => !isRefused(r));
+    serve({ [COMMIT_A]: await repoAt(files) });
+
+    const r = await sync(t, { commit: COMMIT_A });
+
+    expect(r.status).toBe("ok");
+    const expected: Record<string, number> = { ...EMPTY };
+    for (const row of rows()) {
+      if (row.type in TYPE_TO_TABLE && !isRefused(row)) expected[TYPE_TO_TABLE[row.type as RecordType]] += 1;
+    }
+    expect(await counts(t)).toEqual(expected);
+    // Every key landed, not only the right number of rows.
+    const stored = await t.run(async (ctx) => {
+      const out: string[] = [];
+      for (const table of SYNCED_TABLES) for (const d of await ctx.db.query(table).collect()) out.push(`${table}/${d.key}`);
+      return out.sort();
+    });
+    const sent = rows()
+      .filter((row) => row.type in TYPE_TO_TABLE && !isRefused(row))
+      .map((row) => `${TYPE_TO_TABLE[row.type as RecordType]}/${row.record.key}`)
+      .sort();
+    expect(stored).toEqual(sent);
+    // Neither retired key is a printing in the examples, so nothing is deleted.
+    expect((await syncs(t))[0]).toMatchObject({ status: "ok", retired: 0 });
   });
 });
