@@ -2,7 +2,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
-import { loadPrinting } from "./cards";
+import { type CardClaim, type CardListing, loadPrinting, pickOrigin } from "./cards";
 import fixtureV2 from "./fixtures/contract-v2-valid.jsonl?raw";
 import schema from "./schema";
 import { type RecordType, RETIRED_TYPE, TYPE_TO_TABLE, sha256Hex } from "./syncCore";
@@ -376,5 +376,96 @@ describe("a print's origin on synced v2 data", () => {
     expect(bucketLinks.map((l) => [l.printing_key, l.removed_at ?? null]).sort()).toEqual(
       [BUCKET_AND_CLAIM, BUCKET_AND_MINTED, BUCKET_ONLY, REMOVED_REAL].sort().map((k) => [k, null]),
     );
+  });
+});
+
+// The same rules without a database.
+describe("pickOrigin", () => {
+  function listing(productKey: string, over: Partial<CardListing> = {}): CardListing {
+    return {
+      productKey,
+      code: null,
+      name: `name of ${productKey}`,
+      nameEn: null,
+      releaseDate: null,
+      removedAt: null,
+      isBucket: false,
+      productUrl: null,
+      ...over,
+    };
+  }
+  function claimOf(key: string, name: string | null, confidence: CardClaim["confidence"] = "authoritative"): CardClaim {
+    return {
+      key,
+      source: "official_event",
+      sourceUrl: "https://example.test/",
+      quote: "q",
+      confidence,
+      tier: null,
+      startsOn: null,
+      endsOn: null,
+      quantityNote: null,
+      distribution: name === null ? null : { name, nameNative: null, kind: "championship", region: "jp" },
+    };
+  }
+  const keyOf = (o: ReturnType<typeof pickOrigin>) => (o?.kind === "product" ? o.productKey : o);
+
+  test("nothing listed and nothing claimed: null", () => {
+    expect(pickOrigin([], [])).toBeNull();
+  });
+
+  test("a product carries its fields through", () => {
+    const l = listing("en:1", { code: "OP-01", name: "ROMANCE DAWN", nameEn: "Romance Dawn", releaseDate: "2022-12-02", productUrl: "https://x.test/p" });
+    expect(pickOrigin([l], [claimOf("ev_1", "Pack")])).toEqual({
+      kind: "product",
+      productKey: "en:1",
+      code: "OP-01",
+      name: "ROMANCE DAWN",
+      nameEn: "Romance Dawn",
+      releaseDate: "2022-12-02",
+      productUrl: "https://x.test/p",
+    });
+  });
+
+  test("a bucket is skipped, whatever its place", () => {
+    const bucket = listing("a:bucket", { isBucket: true, releaseDate: "2000-01-01" });
+    expect(keyOf(pickOrigin([bucket, listing("z:real")], []))).toBe("z:real");
+    expect(pickOrigin([bucket], [])).toBeNull();
+    expect(pickOrigin([bucket], [claimOf("ev_1", "Pack")])).toEqual({ kind: "distribution", names: ["Pack"] });
+  });
+
+  test("a listing with no product row is not a product", () => {
+    expect(pickOrigin([listing("en:gone", { name: null })], [claimOf("ev_1", "Pack")])).toEqual({ kind: "distribution", names: ["Pack"] });
+  });
+
+  test("listing order: current before removed, dated before undated, by date, then key; input order does not matter", () => {
+    const removed = listing("a:removed", { removedAt: "2026-01-01", releaseDate: "2000-01-01" });
+    const undated = listing("b:undated");
+    const later = listing("c:later", { releaseDate: "2024-01-01" });
+    const earlier = listing("d:earlier", { releaseDate: "2023-01-01" });
+    const all = [removed, undated, later, earlier];
+    expect(keyOf(pickOrigin(all, []))).toBe("d:earlier");
+    expect(keyOf(pickOrigin([...all].reverse(), []))).toBe("d:earlier");
+    expect(keyOf(pickOrigin([removed, undated, later], []))).toBe("c:later");
+    expect(keyOf(pickOrigin([removed, undated], []))).toBe("b:undated");
+    expect(keyOf(pickOrigin([listing("b:same"), listing("a:same")], []))).toBe("a:same");
+  });
+
+  test("a removed real listing counts when no current real one is left, even behind a current bucket", () => {
+    const bucket = listing("a:bucket", { isBucket: true });
+    const removed = listing("z:real", { removedAt: "2026-01-01" });
+    expect(keyOf(pickOrigin([bucket, removed], [claimOf("ev_1", "Pack")]))).toBe("z:real");
+  });
+
+  test("distribution names: distinct, strongest claim first, claims with no distribution skipped", () => {
+    const claims = [
+      claimOf("ev_a", "Weak", "inferred"),
+      claimOf("ev_b", null, "authoritative"),
+      claimOf("ev_c", "Strong", "authoritative"),
+      claimOf("ev_d", "Middle", "corroborated"),
+      claimOf("ev_e", "Strong", "corroborated"),
+    ];
+    expect(pickOrigin([], claims)).toEqual({ kind: "distribution", names: ["Strong", "Middle", "Weak"] });
+    expect(pickOrigin([], [claimOf("ev_b", null)])).toBeNull();
   });
 });
