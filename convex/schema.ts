@@ -423,6 +423,42 @@ export default defineSchema({
     summarized_cards: v.optional(v.number()),
   }).index("by_started_at", ["started_at"]),
 
+  // App-only: TCGplayer's daily prices as tcgcsv publishes them, kept from the
+  // first capture on, because no source sells price history. Keyed by
+  // TCGplayer's product and finish, not by our printing: the join to printings
+  // comes later, and several products can map to one printing. One row per
+  // product, finish and month, holding that month's daily points in date order.
+  tcgplayer_prices: defineTable({
+    key: v.string(), // {productId}:{subTypeName}, e.g. 409506:Normal
+    product_id: v.number(),
+    sub_type: v.string(), // tcgcsv's subTypeName, as published: Normal, Foil
+    group_id: v.number(), // the tcgcsv group the price row was read from
+    month: v.string(), // YYYY-MM
+    points: v.array(
+      v.object({
+        d: v.string(), // YYYY-MM-DD, the UTC date of tcgcsv's last update
+        market: v.union(v.number(), v.null()),
+        low: v.union(v.number(), v.null()),
+        mid: v.union(v.number(), v.null()),
+        high: v.union(v.number(), v.null()),
+        direct_low: v.union(v.number(), v.null()),
+      }),
+    ),
+  }).index("by_key_month", ["key", "month"]),
+
+  // App-only: one row per price capture run.
+  price_captures: defineTable({
+    source: v.literal("tcgcsv"),
+    source_updated: v.string(), // tcgcsv's last-updated.txt, as published
+    day: v.string(), // YYYY-MM-DD the points were written under
+    started_at: v.string(),
+    finished_at: v.optional(v.string()),
+    status: v.union(v.literal("running"), v.literal("ok"), v.literal("failed")),
+    error: v.optional(v.string()),
+    groups: v.optional(v.number()),
+    rows: v.optional(v.number()), // price rows written (one per product and finish)
+  }).index("by_started_at", ["started_at"]),
+
   // App-only, derived: the set index. One row per set (product_sets) across
   // sites, one per code of a product with no set, plus one per code-less
   // bucket kind. Rebuilt by cardSets.rebuild after each

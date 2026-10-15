@@ -1,6 +1,7 @@
 # Price tracking: requirements
 
-**Status: not started.** Begins after the current arc (DON set pages and image
+**Status: capture only.** The daily tcgcsv capture runs from 2026-10-15 (see
+Capture); nothing else is built. The rest begins after the current arc (DON set pages and image
 resize). Recorded on 2026-10-10 from Mike's messages, so the requirements
 survive until the work starts. Each line cites the dm-alyssa message it comes
 from.
@@ -63,3 +64,69 @@ builds.
 - **Where prices are stored**: the data repo (koala-kollect-data, synced like
   every other record) or the app (written by its own cron). The data repo is
   built around published facts that change rarely. Prices change daily.
+
+## Measured 2026-10-15 (alyssa's worker)
+
+- **TCGplayer is English only.** tcgcsv lists one One Piece category, 68. So
+  jp prices can only come from PriceCharting, and cn has no price source.
+- **What is joined today.** 862 of our ~15.6k printings carry a TCGplayer id,
+  all through tcgcsv locators: the DON printings and the Release Event stamps.
+  None of the 4,843 en official printings is joined.
+- **The en join, by card number.** A full tcgcsv sweep (87 groups, 7,739
+  products, 7,500 price rows, 7,340 with a market price) against our en
+  printing locators: all 2,785 of our en numbers exist on TCGplayer (0
+  missing). 1,187 numbers have as many TCGplayer products as we have en
+  printings. On 1,574 TCGplayer has more, because it splits a same-art reprint
+  by the product it came in (OP01-016 Nami: 12 products, 9 printings, among
+  them "Luffy Deck", "Gift Collection 2023", "English Version 1st Anniversary
+  Set"). On 24 we have more printings than TCGplayer has products.
+- **PriceCharting API** (its documentation): a paid subscription; CSV
+  downloads limited to one every 10 minutes; "Historic prices and historic
+  sales are not supported." Card fields: loose-price (ungraded), graded 2 to 9.5
+  regardless of company (graded-price is 9, new-price 8 or 8.5, box-only-price
+  9.5), and at 10 per company: manual-only-price is PSA 10, bgs-10-price,
+  condition-17 CGC 10, condition-18 SGC 10, condition-21 TAG 10, condition-22
+  ACE 10, plus CGC 10 Pristine and BGS 10 Black. Each product carries tcg-id,
+  so once a printing is joined to TCGplayer its PriceCharting en price joins
+  through it. jp products have no TCGplayer counterpart, so jp needs its own
+  join.
+
+## The join: price_links (data repo, roberto's lane)
+
+One row per TCGplayer product and finish that maps to a printing:
+`{printing_key, source, source_id, method}`. The map is **product to printing,
+many to one**, the same split as designs: tcgcsv keys by product, we key by
+printing, so the 1,574 numbers where TCGplayer lists more products resolve as
+several products on one printing. The 24 numbers where we have more printings
+are the review pass. (roberto, general 93520.)
+
+## Capture (started 2026-10-15)
+
+The app captures tcgcsv's prices daily from 2026-10-15
+(convex/priceCapture.ts, cron 21:30Z, after tcgcsv's ~20:00Z update), so
+history exists before anything is shown. Rows are keyed by TCGplayer product
+and finish (`{productId}:{subTypeName}`), one row per month with that month's
+daily points (market, low, mid, high, direct low). They are not joined to
+printings and nothing displays them. A printing reads its history through
+price_links once that exists.
+
+## Questions put to Mike (dm-alyssa 93511, 2026-10-15)
+
+Leans are upper's, and stand if he answers only 1 and 2.
+
+1. **PriceCharting commercial license.** The API is $49 a month, and showing
+   the prices in the app needs a separate license, price unknown. Without it
+   there are no graded and no jp prices, only en raw from TCGplayer.
+2. **Displaying TCGplayer prices publicly.** tcgcsv is an unofficial mirror.
+   Fine to show, or the affiliate route (a price next to a buy link)?
+3. **Combined market price.** No feed carries sales, so a blend averages two
+   derived numbers. Lean: a priority rule. en raw from TCGplayer market, jp raw
+   from PriceCharting, graded from PriceCharting.
+4. **Which price a tile shows.** Lean: the printing whose image the tile
+   shows, since a card's en printings can be 100x apart.
+5. **Graded granularity.** PriceCharting splits by company only at 10. Lean:
+   PSA 10, BGS 10, CGC 10, TAG 10, plus generic 9 and 9.5.
+6. **Currency.** USD only, on the jp and cn pages too; both sources are USD.
+
+Order after the answers: the en join (roberto), price history joined to
+printings plus the summary chain, the UI, PriceCharting last.
