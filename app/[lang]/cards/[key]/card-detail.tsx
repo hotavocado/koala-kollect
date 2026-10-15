@@ -2,12 +2,23 @@
 
 import { useQuery } from "convex/react";
 import Link from "next/link";
+import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
-import type { CardDetail, CardPrinting } from "@/convex/cards";
+import type { CardDesign, CardDetail, CardPrinting, CardRegion } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
 import { CardFace, OfficialLink } from "../printing";
-import { cardLabel, cnOnly, ColorDots, foreignText, Notice, productLabel, siteTag, textInLine } from "../ui";
+import {
+  cardLabel,
+  cnOnly,
+  ColorDots,
+  countLine,
+  foreignText,
+  Notice,
+  productLabel,
+  siteTag,
+  textInLine,
+} from "../ui";
 
 // Same guard as the browse page: the Convex hooks throw without a deployment.
 export function CardDetailView({ cardKey }: { cardKey: string }) {
@@ -122,35 +133,119 @@ function Detail({ card }: { card: CardDetail }) {
         </div>
       </section>
 
+      {/* Grouped by design once the card has one; until then by language. */}
       <section className="flex flex-col gap-8">
-        <h2 className="text-2xl font-semibold">{plural(t.count.printings, total)}</h2>
+        <h2 className="text-2xl font-semibold">
+          {countLine(total, card.designs.length > 0 ? card.counts : null, t, plural)}
+        </h2>
         {card.regions.length === 0 && (
           <p className="text-sm text-muted-foreground">{t.card.noPrintings}</p>
         )}
-        {card.regions.map((region) => (
-          <div key={region.language} className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h3 className="text-lg font-semibold">
-                {t.siteLanguage[region.language]}{" "}
-                <span className="font-normal text-muted-foreground">{region.printings.length}</span>
-              </h3>
-              {region.listUrl && (
-                <OfficialLink href={region.listUrl} className="text-sm">
-                  {t.card.onSiteList}
-                </OfficialLink>
-              )}
-            </div>
-            <ul className="flex flex-col gap-3">
-              {region.printings.map((p) => (
-                <li key={p.key}>
-                  <PrintingRow cardKey={card.key} label={label} printing={p} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {card.designs.length === 0 ? (
+          card.regions.map((region) => (
+            <Region key={region.language} cardKey={card.key} label={label} region={region} />
+          ))
+        ) : (
+          <>
+            {card.designs.map((design) => (
+              <Design key={design.key} cardKey={card.key} label={label} design={design} />
+            ))}
+            {card.unreviewed.length > 0 && (
+              <div className="flex flex-col gap-6">
+                <h3 className="text-xl font-semibold">{t.card.unreviewed}</h3>
+                {card.unreviewed.map((region) => (
+                  <Region key={region.language} cardKey={card.key} label={label} region={region} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </section>
     </article>
+  );
+}
+
+// One language's printings under its name, with that site's list link.
+function Region({ cardKey, label, region }: { cardKey: string; label: string; region: CardRegion }) {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-lg font-semibold">
+          {t.siteLanguage[region.language]}{" "}
+          <span className="font-normal text-muted-foreground">{region.printings.length}</span>
+        </h3>
+        {region.listUrl && (
+          <OfficialLink href={region.listUrl} className="text-sm">
+            {t.card.onSiteList}
+          </OfficialLink>
+        )}
+      </div>
+      <PrintingList cardKey={cardKey} label={label} printings={region.printings} />
+    </div>
+  );
+}
+
+// One design: its stamp (or the first print's variant when unstamped), the
+// exclusive star in plain text, and its printings one language at a time.
+// Chips switch the language only where the design has more than one.
+function Design({ cardKey, label, design }: { cardKey: string; label: string; design: CardDesign }) {
+  const { t, fill } = useI18n();
+  const [language, setLanguage] = useState(design.defaultLanguage);
+  const region = design.regions.find((r) => r.language === language) ?? design.regions[0];
+  const first = design.regions[0].printings[0];
+  const count = design.regions.reduce((n, r) => n + r.printings.length, 0);
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-m3-outline-variant p-4">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+        <h3 className="text-lg font-semibold">
+          {design.stamp ?? t.variant[first.variant]}{" "}
+          <span className="font-normal text-muted-foreground">{count}</span>
+        </h3>
+        {design.exclusive && (
+          <span className="rounded-full bg-custom-yellow px-2.5 py-0.5 text-sm font-medium text-m3-on-surface">
+            {fill(t.card.exclusive, { language: t.siteLanguage[design.exclusive] })}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {design.regions.length > 1 ? (
+          <div role="group" aria-label={t.site.language} className="flex flex-wrap gap-2">
+            {design.regions.map((r) => (
+              <button
+                key={r.language}
+                type="button"
+                aria-pressed={r.language === region.language}
+                onClick={() => setLanguage(r.language)}
+                className="rounded-lg border border-m3-outline px-3 py-1 text-sm hover:bg-layer-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-transparent aria-pressed:bg-m3-secondary-container aria-pressed:text-m3-on-secondary-container"
+              >
+                {t.siteLanguage[r.language]} <span className="text-muted-foreground">{r.printings.length}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t.siteLanguage[region.language]}</p>
+        )}
+        {region.listUrl && (
+          <OfficialLink href={region.listUrl} className="text-sm">
+            {t.card.onSiteList}
+          </OfficialLink>
+        )}
+      </div>
+      <PrintingList cardKey={cardKey} label={label} printings={region.printings} />
+    </div>
+  );
+}
+
+function PrintingList({ cardKey, label, printings }: { cardKey: string; label: string; printings: CardPrinting[] }) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {printings.map((p) => (
+        <li key={p.key}>
+          <PrintingRow cardKey={cardKey} label={label} printing={p} />
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -143,6 +143,12 @@ export default defineSchema({
         ),
         printings: v.number(),
         image_url: v.union(v.string(), v.null()),
+        // Designs with a printing, languages printed in, and printings no
+        // design holds (designCore.designCounts). Absent on a summary stored
+        // before designs existed, until the chain next runs.
+        designs: v.optional(v.number()),
+        languages: v.optional(v.number()),
+        unreviewed: v.optional(v.number()),
       }),
     ),
   })

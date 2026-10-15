@@ -49,6 +49,9 @@ const fr = {
     cards: plural({ one: "{n} carte", other: "{n} cartes" }),
     printings: plural({ one: "{n} impression", other: "{n} impressions" }),
     sources: plural({ one: "{n} source", other: "{n} sources" }),
+    designs: plural({ one: "{n} design", other: "{n} designs" }),
+    languages: plural({ one: "{n} langue", other: "{n} langues" }),
+    unreviewed: plural({ one: "{n} non vérifiée", other: "{n} non vérifiées" }),
   },
   finder: {
     label: "Trouver une carte par numéro ou par nom",
@@ -100,6 +103,9 @@ const fr = {
     noSourceList: "La liste de cartes n'indique aucune source pour cette impression.",
     from: "Provenance : {origins}",
     whereFrom: "Provenance",
+    designLine: "{designs} en {languages}, {printings}",
+    exclusive: "★ Exclusif : {language}",
+    unreviewed: "Pas encore classées par design",
   },
   print: {
     notFoundTitle: "Impression introuvable",

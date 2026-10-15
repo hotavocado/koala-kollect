@@ -49,6 +49,9 @@ const ko = {
     cards: plural({ other: "카드 {n}장" }),
     printings: plural({ other: "프린트 {n}개" }),
     sources: plural({ other: "출처 {n}개" }),
+    designs: plural({ other: "디자인 {n}개" }),
+    languages: plural({ other: "{n}개 언어" }),
+    unreviewed: plural({ other: "미검토 {n}개" }),
   },
   finder: {
     label: "번호나 이름으로 카드 찾기",
@@ -97,6 +100,9 @@ const ko = {
     noSourceList: "카드 리스트에 이 프린트의 출처가 나와 있지 않습니다.",
     from: "{origins}에서",
     whereFrom: "입수 경로",
+    designLine: "{languages}에 걸친 {designs}, {printings}",
+    exclusive: "★ {language} 한정",
+    unreviewed: "아직 디자인으로 분류되지 않음",
   },
   print: {
     notFoundTitle: "프린트를 찾을 수 없습니다",

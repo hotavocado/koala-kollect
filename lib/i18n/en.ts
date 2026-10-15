@@ -57,6 +57,9 @@ const en = {
     cards: plural({ one: "{n} card", other: "{n} cards" }),
     printings: plural({ one: "{n} printing", other: "{n} printings" }),
     sources: plural({ one: "{n} source", other: "{n} sources" }),
+    designs: plural({ one: "{n} design", other: "{n} designs" }),
+    languages: plural({ one: "{n} language", other: "{n} languages" }),
+    unreviewed: plural({ other: "{n} unreviewed" }),
   },
   finder: {
     label: "Find a card by number or name",
@@ -107,6 +110,11 @@ const en = {
     noSourceList: "The card list prints no source for this printing.",
     from: "From {origins}",
     whereFrom: "Where it came from",
+    // The headline once a card has designs: "2 designs across 3 languages, 12 printings".
+    designLine: "{designs} across {languages}, {printings}",
+    // On a design printed in one language only. The star stays in every language.
+    exclusive: "★ {language} exclusive",
+    unreviewed: "Not yet sorted into designs",
   },
   print: {
     notFoundTitle: "Printing not found",

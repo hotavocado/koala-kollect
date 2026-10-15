@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CardImage } from "./card-image";
 import type { BrowseCard } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
-import { cardLabel, ColorDots, siteTag } from "./ui";
+import { cardLabel, ColorDots, countLine, siteTag } from "./ui";
 
 // Rendered by Client Components only: it reads the language from context.
 export function CardTile({ card }: { card: BrowseCard }) {
@@ -35,11 +35,12 @@ export function CardTile({ card }: { card: BrowseCard }) {
         <p lang={card.name ? siteTag(card.nameSite) : undefined} className="truncate text-sm font-medium">
           {label}
         </p>
-        {/* Wraps rather than truncates: two columns at phone width cut the printing count. */}
+        {/* Wraps rather than truncates: two columns at phone width cut the printing count.
+            The design line is too long for one tile line, so it wraps inside too. */}
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <ColorDots colors={card.colors} />
           {card.number && <span>{card.number}</span>}
-          <span className="whitespace-nowrap">{plural(t.count.printings, card.printings)}</span>
+          <span className={card.designs ? undefined : "whitespace-nowrap"}>{countLine(card.printings, card.designs, t, plural)}</span>
         </p>
       </div>
     </Link>
