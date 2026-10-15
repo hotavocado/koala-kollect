@@ -81,7 +81,8 @@ describe("cards.browse", () => {
         nameSite: "en",
         imageUrl: "https://example.test/jp/prt_000000000002.png",
         printings: 2,
-        designs: { designs: 0, languages: 2, unreviewed: 2, exclusive: {} },
+        designs: null,
+        counts: { designs: 0, languages: 2, unreviewed: 2, exclusive: {} },
       },
     ]);
   });

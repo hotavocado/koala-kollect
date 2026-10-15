@@ -83,3 +83,15 @@ tell a rule from an accident.
   design has. Unreviewed printings sit below, by language, as today.
 - The rules live in convex/designCore.ts and `countLine`
   (app/[lang]/cards/ui.tsx), unit-tested without a DOM.
+
+## 2026-10-15: one headline for every card, and exclusive counts
+
+Options: keep the bare "N printings" until a card has designs, or give every card the same
+shape now. Picked the same shape (upper, alyssa-internal 93618, Mike's ask at 93601): a card
+with no design rows reads "8 printings across 3 languages · 8 unreviewed", and design blocks
+appear as rows land. The exclusive count (" · 3 cn exclusive", Mike's form from dm 92505) is
+derived by the same `exclusiveLanguage` rule as the per-design star, so the tile and the star
+can never disagree, and stored on the card summary. The count uses a short language label
+(`languageCode`); the star keeps the full name. Browse returns `counts` for every card and keeps
+the old nullable `designs`, because Convex and Vercel deploy separately and a client deployed
+before this reads any non-null `designs` as a designed card (codex r1 on #45).

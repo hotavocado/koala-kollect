@@ -36,9 +36,14 @@ export type BrowseCard = {
   nameSite: Doc<"card_observations">["site"] | null;
   imageUrl: string | null;
   printings: number;
-  // Null only on a summary stored before designs existed: the tile then shows
-  // the printing count alone. A card with no design row has designs 0.
+  // Null until the card has a design row, and on a summary stored before
+  // designs existed. Kept for a client deployed before counts: it reads any
+  // non-null designs as a designed card.
   designs: DesignCounts | null;
+  // The headline counts for every card, designs 0 until it has one. Null only
+  // on a summary stored before design counts existed: the tile then shows the
+  // printing count alone.
+  counts: DesignCounts | null;
 };
 
 // The current observation whose printed text the page shows. An errata closes
@@ -143,7 +148,7 @@ export async function browseRow(
       nameSite,
       imageUrl: imageFrom?.length ? cardImage(imageFrom, order) : summary.image_url,
       printings: summary.printings,
-      designs:
+      ...withCounts(
         summary.designs === undefined
           ? null
           : {
@@ -152,6 +157,7 @@ export async function browseRow(
               unreviewed: summary.unreviewed ?? 0,
               exclusive: summary.exclusive ?? {},
             },
+      ),
     };
   }
   // No summary yet (a card the chain has not reached): read them live.
@@ -172,8 +178,14 @@ export async function browseRow(
     nameSite: shown?.site ?? null,
     imageUrl: cardImage(imageFrom?.length ? imageFrom : printings, order),
     printings: printings.length,
-    designs: designCounts(printings, await readDesigns(ctx.db, card.key, printings)),
+    ...withCounts(designCounts(printings, await readDesigns(ctx.db, card.key, printings))),
   };
+}
+
+// counts for this client; designs as a client deployed before counts expects,
+// null for a card with no design row (Convex and Vercel deploy separately).
+function withCounts(counts: DesignCounts | null): Pick<BrowseCard, "designs" | "counts"> {
+  return { designs: counts && counts.designs > 0 ? counts : null, counts };
 }
 
 // The set index: one row per set across sites (and per code of a product with

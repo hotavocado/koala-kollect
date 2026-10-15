@@ -252,7 +252,9 @@ describe("design counts on the tile", () => {
   test("no design rows: zero designs, with the languages and unreviewed count the headline reads", async () => {
     const row = await summarized({ printings: [printing("prt_en_1", "en"), printing("prt_jp_1", "jp")] });
     expect(row?.printings).toBe(2);
-    expect(row?.designs).toEqual({ designs: 0, languages: 2, unreviewed: 2, exclusive: {} });
+    expect(row?.counts).toEqual({ designs: 0, languages: 2, unreviewed: 2, exclusive: {} });
+    // A client deployed before counts reads any non-null designs as designed.
+    expect(row?.designs).toBeNull();
   });
 
   test("a summary stored before design counts reads null, the printing count alone", async () => {
@@ -267,7 +269,7 @@ describe("design counts on the tile", () => {
       });
     });
     const res = await t.query(api.cards.browse, { paginationOpts: { numItems: 10, cursor: null } });
-    expect(res.page.find((c) => c.key === ROBIN)?.designs).toBeNull();
+    expect(res.page.find((c) => c.key === ROBIN)?.counts).toBeNull();
   });
 
   test("exclusive designs are counted by language, by the same rule as the page's star", async () => {
@@ -282,7 +284,9 @@ describe("design counts on the tile", () => {
       ],
     };
     const counts = { designs: 3, languages: 3, unreviewed: 0, exclusive: { cn: 2 } };
-    expect((await summarized(seed))?.designs).toEqual(counts);
+    const row = await summarized(seed);
+    expect(row?.counts).toEqual(counts);
+    expect(row?.designs).toEqual(counts);
     const t = await seeded(seed);
     const res = await detail(t);
     expect(res.counts).toEqual(counts);
@@ -298,7 +302,7 @@ describe("design counts on the tile", () => {
         ["prt_en_2", "dsn_false"],
       ],
     });
-    expect(row?.designs).toEqual({ designs: 2, languages: 2, unreviewed: 1, exclusive: { en: 1 } });
+    expect(row?.counts).toEqual({ designs: 2, languages: 2, unreviewed: 1, exclusive: { en: 1 } });
   });
 
   test("a design gaining a star changes the summary on the next pass", async () => {
@@ -314,7 +318,7 @@ describe("design counts on the tile", () => {
     const { changed } = await t.mutation(internal.cardSummary.batch, { cursor: null });
     expect(changed).toBe(1);
     const res = await t.query(api.cards.browse, { paginationOpts: { numItems: 10, cursor: null } });
-    expect(res.page.find((c) => c.key === ROBIN)?.designs).toEqual({
+    expect(res.page.find((c) => c.key === ROBIN)?.counts).toEqual({
       designs: 2,
       languages: 2,
       unreviewed: 0,
@@ -338,7 +342,7 @@ describe("design counts on the tile", () => {
         ["prt_tc_1", "dsn_stamp"],
       ],
     });
-    expect(row?.designs).toEqual({ designs: 2, languages: 3, unreviewed: 1, exclusive: {} });
+    expect(row?.counts).toEqual({ designs: 2, languages: 3, unreviewed: 1, exclusive: {} });
   });
 
   test("PIN: a card whose only printings are tcgcsv and en counts one language", async () => {
@@ -347,7 +351,7 @@ describe("design counts on the tile", () => {
       designs: [design("dsn_en")],
       members: [["prt_en_1", "dsn_en"]],
     });
-    expect(row?.designs).toEqual({ designs: 1, languages: 1, unreviewed: 1, exclusive: {} });
+    expect(row?.counts).toEqual({ designs: 1, languages: 1, unreviewed: 1, exclusive: {} });
   });
 
   test("the live read (no summary yet) counts the same", async () => {
@@ -357,7 +361,7 @@ describe("design counts on the tile", () => {
       members: [["prt_en_1", "dsn_en"]],
     });
     const res = await t.query(api.cards.browse, { paginationOpts: { numItems: 10, cursor: null } });
-    expect(res.page.find((c) => c.key === ROBIN)?.designs).toEqual({ designs: 1, languages: 1, unreviewed: 1, exclusive: {} });
+    expect(res.page.find((c) => c.key === ROBIN)?.counts).toEqual({ designs: 1, languages: 1, unreviewed: 1, exclusive: {} });
   });
 
   test("a design row arriving after a pass changes the summary on the next", async () => {
@@ -370,7 +374,7 @@ describe("design counts on the tile", () => {
     const { changed } = await t.mutation(internal.cardSummary.batch, { cursor: null });
     expect(changed).toBe(1);
     const res = await t.query(api.cards.browse, { paginationOpts: { numItems: 10, cursor: null } });
-    expect(res.page.find((c) => c.key === ROBIN)?.designs).toEqual({ designs: 1, languages: 2, unreviewed: 1, exclusive: {} });
+    expect(res.page.find((c) => c.key === ROBIN)?.counts).toEqual({ designs: 1, languages: 2, unreviewed: 1, exclusive: {} });
   });
 
   test("splitting a design changes the summary though no other count moves", async () => {
@@ -393,7 +397,7 @@ describe("design counts on the tile", () => {
     const { changed } = await t.mutation(internal.cardSummary.batch, { cursor: null });
     expect(changed).toBe(1);
     const res = await t.query(api.cards.browse, { paginationOpts: { numItems: 10, cursor: null } });
-    expect(res.page.find((c) => c.key === ROBIN)?.designs).toEqual({ designs: 2, languages: 1, unreviewed: 0, exclusive: {} });
+    expect(res.page.find((c) => c.key === ROBIN)?.counts).toEqual({ designs: 2, languages: 1, unreviewed: 0, exclusive: {} });
   });
 
   test("a summary stored before design counts is rewritten once", async () => {
