@@ -51,6 +51,9 @@ function Detail({ card }: { card: CardDetail }) {
   const label = cardLabel({ ...card, name: card.text?.name ?? null }, t);
   const textTag = siteTag(card.text?.site ?? null);
   const total = card.regions.reduce((n, r) => n + r.printings.length, 0);
+  // Vercel and Convex deploy separately, so this client can briefly read a
+  // detail payload from before designs existed; treat it as a card with none.
+  const designs = card.designs ?? [];
   const stats = (
     [
       [t.stat.cost, card.cost],
@@ -136,18 +139,18 @@ function Detail({ card }: { card: CardDetail }) {
       {/* Grouped by design once the card has one; until then by language. */}
       <section className="flex flex-col gap-8">
         <h2 className="text-2xl font-semibold">
-          {countLine(total, card.designs.length > 0 ? card.counts : null, t, plural)}
+          {countLine(total, designs.length > 0 ? card.counts : null, t, plural)}
         </h2>
         {card.regions.length === 0 && (
           <p className="text-sm text-muted-foreground">{t.card.noPrintings}</p>
         )}
-        {card.designs.length === 0 ? (
+        {designs.length === 0 ? (
           card.regions.map((region) => (
             <Region key={region.language} cardKey={card.key} label={label} region={region} />
           ))
         ) : (
           <>
-            {card.designs.map((design) => (
+            {designs.map((design) => (
               <Design key={design.key} cardKey={card.key} label={label} design={design} />
             ))}
             {card.unreviewed.length > 0 && (
