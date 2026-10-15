@@ -82,8 +82,9 @@ type ProductOrigin = Extract<CardOrigin, { kind: "product" }>;
 
 // What the print page shows of a print's origin. A product origin is shown on
 // its own and the claims are not (never both); a distribution origin shows the
-// claims. "Listed under" keeps every other listing, buckets included, and
-// drops the one the origin already names.
+// claims, and so does no origin at all: a claim whose distribution has not
+// synced is still evidence. "Listed under" keeps every other listing, buckets
+// included, and drops the one the origin already names.
 export function printOrigin<L extends { productKey: string }, C>(p: {
   origin: CardOrigin;
   listings: L[];
@@ -92,7 +93,7 @@ export function printOrigin<L extends { productKey: string }, C>(p: {
   const product = p.origin?.kind === "product" ? p.origin : null;
   return {
     product,
-    claims: p.origin?.kind === "distribution" ? p.claims : [],
+    claims: product ? [] : p.claims,
     listedUnder: product ? p.listings.filter((l) => l.productKey !== product.productKey) : p.listings,
   };
 }

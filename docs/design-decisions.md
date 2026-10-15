@@ -22,7 +22,8 @@ tell a rule from an accident.
 - **"Listed under" omits the origin product.** The print page names the origin
   once, in "Where it came from"; "Listed under" keeps every other listing,
   buckets included, and is not rendered when nothing remains. When the origin
-  is a product, the claims list is not rendered.
+  is a product, the claims list is not rendered. With no origin, claims whose
+  distribution has not synced still render: they are evidence, not an origin.
 - The rule lives in one pure function on the server, and the print page's
   section choice in `printOrigin` (app/[lang]/cards/ui.tsx), so both are
   unit-tested without a database or a DOM.

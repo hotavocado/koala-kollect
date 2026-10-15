@@ -196,6 +196,12 @@ function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: 
             {fill(t.card.from, { origins: p.origin.names.join(", ") })} · {plural(t.count.sources, p.claims.length)}
           </p>
         )}
+        {/* Claims whose distribution has not synced yet still count as sources. */}
+        {p.origin === null && p.claims.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t.card.whereFrom} · {plural(t.count.sources, p.claims.length)}
+          </p>
+        )}
       </div>
       <span aria-hidden="true" className="self-center text-muted-foreground">
         ›

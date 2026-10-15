@@ -209,7 +209,7 @@ describe("printOrigin", () => {
     });
   });
 
-  test("no origin shows neither", () => {
-    expect(printOrigin({ origin: null, listings, claims })).toEqual({ product: null, claims: [], listedUnder: listings });
+  test("no origin still shows claims whose distribution has not synced", () => {
+    expect(printOrigin({ origin: null, listings, claims })).toEqual({ product: null, claims, listedUnder: listings });
   });
 });
