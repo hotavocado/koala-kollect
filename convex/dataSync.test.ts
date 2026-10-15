@@ -1080,11 +1080,6 @@ describe("contract v2 examples (data 56ff7c3)", () => {
   const rows = (): Row[] => fixtureV2.trim().split("\n").map((l) => JSON.parse(l) as Row);
   // Audit records the data repo keeps under runs/, never in the manifest.
   const AUDIT_ONLY: ReadonlySet<string> = new Set(["ingest_run"]);
-  // The one v2 row convex/schema.ts refuses (see the test below).
-  const REFUSED_DESIGN = "prt_000000000001";
-  const isRefused = (r: Row) => r.type === "printing_design" && r.record.key === REFUSED_DESIGN;
-  const filesFrom = (keep: (r: Row) => boolean) =>
-    fixtureFiles(rows().filter(keep).map((r) => JSON.stringify(r)).join("\n"));
 
   test("every type in the file is a synced table, the retired list, or audit only, so the helper drops nothing silently", () => {
     const types = [...new Set(rows().map((r) => r.type))].sort();
@@ -1189,14 +1184,11 @@ describe("contract v2 examples (data 56ff7c3)", () => {
     });
   });
 
-  // CROSS-REPO FINDING for the data owner. The contract's printing_design
-  // (schema/v1.schema.json at 56ff7c3) is {key, printing_key, design_key,
-  // method, reviewed_by?, reviewed_at?} with additionalProperties false: it
-  // has no confidence. convex/schema.ts printing_designs requires confidence,
-  // so the first reviewed row the data repo ships fails pass 2 and closes the
-  // sync "failed" (data main ships printing_designs at 0 rows, so it has not
-  // happened yet). The schema is not changed here; this records the refusal.
-  test("each row on its own: only the printing_design row is refused, for its missing confidence", async () => {
+  // The contract's printing_design (schema/v1.schema.json) has no confidence
+  // and forbids extra fields. When convex/schema.ts required it, the reviewed
+  // example row prt_000000000001 was the one v2 row refused, and syncing the
+  // file closed the run "failed". Optional now, so every row is accepted.
+  test("each row on its own: no row is refused", async () => {
     const t = convexTest(schema, modules);
     const refused: string[] = [];
     for (const r of rows()) {
@@ -1208,38 +1200,22 @@ describe("contract v2 examples (data 56ff7c3)", () => {
         refused.push(`${r.type} ${r.record.key}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    expect(refused).toHaveLength(1);
-    expect(refused[0]).toMatch(new RegExp(`^printing_design ${REFUSED_DESIGN}: .*confidence`, "s"));
+    expect(refused).toEqual([]);
   });
 
-  test("synced unchanged, the run fails on that printing_design row", async () => {
+  test("synced unchanged, the sync is ok and every row lands, the reviewed design row included", async () => {
     const t = convexTest(schema, modules);
     serve({ [COMMIT_A]: await repoAt(fixtureFiles(fixtureV2)) });
-
-    const r = await sync(t, { commit: COMMIT_A });
-
-    expect(r.status).toBe("failed");
-    expect(r.detail).toMatch(/confidence/);
-    const [row] = await syncs(t);
-    expect(row).toMatchObject({ status: "failed" });
-    expect(row.refusal).toMatch(/confidence/);
-    expect(await t.run(async (ctx) => await ctx.db.query("printing_designs").collect())).toEqual([]);
-  });
-
-  test("every other row lands: without that one row the sync is ok and each table holds its rows", async () => {
-    expect(rows().filter(isRefused)).toHaveLength(1);
-    const t = convexTest(schema, modules);
-    const files = filesFrom((r) => !isRefused(r));
-    serve({ [COMMIT_A]: await repoAt(files) });
 
     const r = await sync(t, { commit: COMMIT_A });
 
     expect(r.status).toBe("ok");
     const expected: Record<string, number> = { ...EMPTY };
     for (const row of rows()) {
-      if (row.type in TYPE_TO_TABLE && !isRefused(row)) expected[TYPE_TO_TABLE[row.type as RecordType]] += 1;
+      if (row.type in TYPE_TO_TABLE) expected[TYPE_TO_TABLE[row.type as RecordType]] += 1;
     }
     expect(await counts(t)).toEqual(expected);
+    expect(expected.printing_designs).toBe(1);
     // Every key landed, not only the right number of rows.
     const stored = await t.run(async (ctx) => {
       const out: string[] = [];
@@ -1247,7 +1223,7 @@ describe("contract v2 examples (data 56ff7c3)", () => {
       return out.sort();
     });
     const sent = rows()
-      .filter((row) => row.type in TYPE_TO_TABLE && !isRefused(row))
+      .filter((row) => row.type in TYPE_TO_TABLE)
       .map((row) => `${TYPE_TO_TABLE[row.type as RecordType]}/${row.record.key}`)
       .sort();
     expect(stored).toEqual(sent);

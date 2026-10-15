@@ -12,11 +12,6 @@ import { type RecordType, RETIRED_TYPE, TYPE_TO_TABLE, sha256Hex } from "./syncC
 // origin case: prt_0cvlfhj8iyh4 listed under the jp bucket and a product
 // minted from its source text. A second commit adds the rows the other cases
 // need and syncs them the same way, as the data repo would.
-//
-// One v2 row is left out of both commits: the printing_design convex/schema.ts
-// refuses for its missing confidence (dataSync.test.ts, "contract v2
-// examples", records that finding). It says nothing about origin, and with it
-// the sync stops before the products are written.
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
 const newTest = () => convexTest(schema, modules);
@@ -34,8 +29,7 @@ const v2Rows = (): Row[] =>
   fixtureV2
     .trim()
     .split("\n")
-    .map((l) => JSON.parse(l) as Row)
-    .filter((r) => !(r.type === "printing_design" && r.record.key === "prt_000000000001"));
+    .map((l) => JSON.parse(l) as Row);
 
 // v2 products the cases lean on, by what they are in the examples.
 const BUCKET = "en:569901"; // Promotion card, is_bucket

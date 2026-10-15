@@ -351,7 +351,10 @@ export default defineSchema({
     printing_key: v.string(),
     design_key: v.string(),
     method: v.union(v.literal("manual"), v.literal("image_hash"), v.literal("suffix_and_rarity")),
-    confidence,
+    // Optional: the data contract's printing_design carries no confidence, since
+    // method already says how the membership was decided. Required, it refused
+    // the contract's own reviewed example row (koala-kollect-data #26).
+    confidence: v.optional(confidence),
     reviewed_by: v.optional(v.string()),
     reviewed_at: v.optional(v.string()),
   })
