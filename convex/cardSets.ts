@@ -14,7 +14,12 @@ import { groupProducts, type ProductInput, type SetGroup } from "./cardSetsCore"
 export const listProducts = internalQuery({
   args: {},
   handler: async (ctx): Promise<ProductInput[]> => {
-    const products = await ctx.db.query("products").collect();
+    // Only series pages make set pages. A product minted from source text (no
+    // series_id) is a print's origin, not a page: grouped by kind it would join
+    // the Limited set, where its release date would date that undated pool and
+    // its name could take the pool's title. Its printings already sit in the
+    // bucket, so the set's cards do not change.
+    const products = (await ctx.db.query("products").collect()).filter((p) => p.series_id !== undefined);
     return products.map(({ key, site, code, name, name_en, kind, release_date }) => ({ key, site, code, name, name_en, kind, release_date }));
   },
 });
