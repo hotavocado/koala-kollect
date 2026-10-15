@@ -2,21 +2,19 @@
 
 import type { CardClaim, CardListing } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
-import { confidenceShown, handoutWhen, quantityNoteShown, releaseLabel } from "./ui";
+import { confidenceShown, handoutWhen, productLabel, quantityNoteShown, releaseLabel } from "./ui";
 
 // Shared by the card page and each print's page, so a print's origin reads the
 // same in both places. The labels for each enum live in the dictionary.
 
 export function ListingLine({ listing: l }: { listing: CardListing }) {
   const i18n = useI18n();
-  const { t, fill } = i18n;
-  // A listing whose product row has not synced still shows, by its series id.
-  const name = l.nameEn ?? l.name ?? fill(t.listing.series, { id: l.productKey.split(":")[1] ?? l.productKey });
+  const { t } = i18n;
   // The product is one site's own, so its date needs no JP mark.
   const released = releaseLabel({ releaseDate: l.releaseDate, releaseSite: null }, "day", i18n);
   return (
     <span className={l.removedAt ? "text-muted-foreground" : undefined}>
-      {[l.code, name].filter(Boolean).join(" ")}
+      {productLabel(l, t)}
       {released && <span className="text-muted-foreground"> · {released}</span>}
       {l.removedAt && <span> · {t.listing.noLongerListed}</span>}
     </span>

@@ -110,6 +110,7 @@ const ko = {
     listedUnder: "등록 항목",
     whereFrom: "입수 경로",
     noOrigin: "이 프린트의 입수 경로에 대한 출처가 아직 기록되지 않았습니다.",
+    productPage: "상품 페이지",
   },
   listing: {
     series: "시리즈 {id}",

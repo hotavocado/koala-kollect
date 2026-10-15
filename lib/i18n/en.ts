@@ -120,6 +120,7 @@ const en = {
     listedUnder: "Listed under",
     whereFrom: "Where it came from",
     noOrigin: "No source for this printing's origin is recorded yet.",
+    productPage: "Product page",
   },
   listing: {
     series: "Series {id}",

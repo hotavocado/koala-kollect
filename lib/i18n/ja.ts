@@ -111,6 +111,7 @@ const ja = {
     listedUnder: "掲載先",
     whereFrom: "出どころ",
     noOrigin: "このプリントの出どころを示す出典はまだ記録されていません。",
+    productPage: "商品ページ",
   },
   listing: {
     series: "シリーズ{id}",

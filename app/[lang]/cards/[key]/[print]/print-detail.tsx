@@ -7,7 +7,7 @@ import { CardImage } from "../../card-image";
 import type { PrintDetail } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
 import { CardFace, ClaimLine, ListingLine, OfficialLink } from "../../printing";
-import { cardLabel, ColorDots, foreignText, Notice, siteTag, textInLine } from "../../ui";
+import { cardLabel, ColorDots, foreignText, Notice, printOrigin, productLabel, releaseLabel, siteTag, textInLine } from "../../ui";
 
 // Same guard as the card page: the Convex hooks throw without a deployment.
 export function PrintDetailView({ cardKey, printKey }: { cardKey: string; printKey: string }) {
@@ -36,8 +36,13 @@ function ConnectedPrint({ cardKey, printKey }: { cardKey: string; printKey: stri
 }
 
 function Print({ print: { card, site, language, listUrl, printing: p } }: { print: PrintDetail }) {
-  const { t, href, lang, fill } = useI18n();
+  const i18n = useI18n();
+  const { t, href, lang, fill } = i18n;
   const label = cardLabel(card, t);
+  const origin = printOrigin(p);
+  // The product is one site's own, so its date needs no JP mark.
+  const released =
+    origin.product && releaseLabel({ releaseDate: origin.product.releaseDate, releaseSite: null }, "day", i18n);
   return (
     <article className="flex flex-col gap-10">
       <section className="grid gap-6 xs:grid-cols-[minmax(0,240px)_1fr] xs:items-start">
@@ -94,11 +99,11 @@ function Print({ print: { card, site, language, listUrl, printing: p } }: { prin
         </div>
       </section>
 
-      {p.listings.length > 0 && (
+      {origin.listedUnder.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="text-2xl font-semibold">{t.print.listedUnder}</h2>
           <ul className="flex flex-col gap-1 text-sm">
-            {p.listings.map((l) => (
+            {origin.listedUnder.map((l) => (
               <li key={l.productKey}>
                 <ListingLine listing={l} />
               </li>
@@ -109,16 +114,28 @@ function Print({ print: { card, site, language, listUrl, printing: p } }: { prin
 
       <section className="flex flex-col gap-3">
         <h2 className="text-2xl font-semibold">{t.print.whereFrom}</h2>
-        {p.claims.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t.print.noOrigin}</p>
-        ) : (
+        {/* One origin, never both: the product, or the claims about the
+            distribution, or a line saying none is recorded. */}
+        {origin.product ? (
+          <div className="flex flex-col gap-0.5 rounded-lg bg-layer-1 p-4 text-sm">
+            <span className="font-medium">{productLabel(origin.product, t)}</span>
+            {released && <span className="text-muted-foreground">{released}</span>}
+            {origin.product.productUrl && (
+              <span className="text-xs text-muted-foreground">
+                <OfficialLink href={origin.product.productUrl}>{t.print.productPage}</OfficialLink>
+              </span>
+            )}
+          </div>
+        ) : origin.claims.length > 0 ? (
           <ul className="flex flex-col gap-3 text-sm">
-            {p.claims.map((c) => (
+            {origin.claims.map((c) => (
               <li key={c.key} className="rounded-lg bg-layer-1 p-4">
                 <ClaimLine claim={c} />
               </li>
             ))}
           </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t.print.noOrigin}</p>
         )}
       </section>
     </article>
