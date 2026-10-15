@@ -444,9 +444,9 @@ export default defineSchema({
     // Old product-code slugs this set's page replaced (opc-09, op14-eb04), so
     // the DON don_sets places on them still show here.
     aliases: v.optional(v.array(v.string())),
-    // Products that also carry another set: their cards numbered for that set
-    // are left off this page and its count.
-    shared: v.optional(v.array(v.object({ product_key: v.string(), other_sets: v.array(v.string()) }))),
+    // Products that also carry another set: they add only this set's numbers,
+    // and cards the set's other products list too, to the page and its count.
+    shared: v.optional(v.array(v.string())),
     release_date: v.optional(v.string()), // en's, or jp's when en has no dated product for the code
     release_site: v.optional(v.union(v.literal("en"), v.literal("jp"))),
     card_count: v.number(),

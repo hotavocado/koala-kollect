@@ -45,9 +45,9 @@ export type SetGroup = {
   // Old product-code slugs whose page this set now is (opc-09, op14-eb04):
   // don_sets still places DON cards by those.
   aliases: string[];
-  // Products that carry another set as well, and which: their cards numbered
-  // for those sets belong on those sets' pages.
-  shared: { product_key: string; other_sets: string[] }[];
+  // Products that carry another set as well: they add only this set's
+  // numbers, and cards the set's other products list too (keepsShared).
+  shared: string[];
   release_date: string | null;
   release_site: ReleaseSite | null;
   order: number;
@@ -240,12 +240,7 @@ export function groupProducts(products: ProductInput[]): SetGroup[] {
     const aliases = g.isSet
       ? [...new Set(g.products.flatMap((p) => (p.code && p.code.toLowerCase() !== slug && setSlugFor(p.code) === slug ? [p.code.toLowerCase()] : [])))].sort()
       : [];
-    const shared = g.isSet
-      ? g.products
-          .filter((p) => setsOf(p).length > 1)
-          .map((p) => ({ product_key: p.key, other_sets: setsOf(p).filter((s) => s !== g.code) }))
-          .sort((a, b) => a.product_key.localeCompare(b.product_key))
-      : [];
+    const shared = g.isSet ? g.products.filter((p) => setsOf(p).length > 1).map((p) => p.key).sort() : [];
     return {
       slug,
       code: g.code,

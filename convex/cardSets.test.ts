@@ -344,15 +344,22 @@ test("a set with no DON placed on it has an empty DON list", async () => {
 async function seedSharedSets() {
   const t = convexTest(schema, modules);
   await t.run(async (ctx) => {
-    for (const c of [card("card_op14", "OP14-001"), card("card_eb04", "EB04-001"), card("card_re", "OP09-050")]) {
+    for (const c of [
+      card("card_op14", "OP14-001"),
+      card("card_eb04", "EB04-001"),
+      card("card_re", "OP09-050"),
+      card("card_re2", "EB01-002"),
+    ]) {
       await ctx.db.insert("cards", c);
     }
     for (const p of [
       printing("prt_op14_en", "card_op14", "en"),
       printing("prt_eb04_en", "card_eb04", "en"),
       printing("prt_re_en", "card_re", "en"),
+      printing("prt_re2_en", "card_re2", "en"),
       printing("prt_eb04_jp", "card_eb04", "jp"),
       printing("prt_op14_jp", "card_op14", "jp"),
+      printing("prt_re_jp", "card_re", "jp"),
     ]) {
       await ctx.db.insert("printings", p);
     }
@@ -377,8 +384,12 @@ async function seedSharedSets() {
     for (const l of [
       link("prt_op14_en", "en:569114"),
       link("prt_eb04_en", "en:569114"),
+      // Two reprints in the combined booster: jp's OP-14 lists OP09-050 too, so
+      // it is OP-14's; EB01-002 no other product lists, so neither set takes it.
       link("prt_re_en", "en:569114"),
+      link("prt_re2_en", "en:569114"),
       link("prt_op14_jp", "jp:550114"),
+      link("prt_re_jp", "jp:550114"),
       link("prt_eb04_jp", "jp:550204"),
     ]) {
       await ctx.db.insert("printing_products", l);
@@ -390,7 +401,7 @@ async function seedSharedSets() {
   return t;
 }
 
-test("a set joins its products across languages; a shared booster's other-set cards stay off its page", async () => {
+test("a set joins its products across languages; a shared booster gives it only its own cards", async () => {
   const t = await seedSharedSets();
   expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 2, pruned: 0 });
 
@@ -400,19 +411,21 @@ test("a set joins its products across languages; a shared booster's other-set ca
   expect(eb04?.set).toMatchObject({ code: "EB-04", kind: "extra", title: "EGGHEAD CRISIS", releaseDate: "2026-01-31", releaseSite: "jp" });
   expect(eb04?.cards.map((c) => c.number)).toEqual(["EB04-001"]);
   expect(eb04?.cards[0].printings).toBe(2);
-  expect(eb04?.fromOtherSets.map((c) => c.number)).toEqual(["OP09-050"]);
+  expect(eb04?.fromOtherSets).toEqual([]);
   expect([...(eb04?.cards ?? []), ...(eb04?.fromOtherSets ?? [])].some((c) => c.number?.startsWith("OP14-"))).toBe(false);
   expect(eb04?.don).toEqual([]);
 
   const op14 = await t.query(api.cards.setCards, { slug: "op-14" });
   expect(op14?.cards.map((c) => c.number)).toEqual(["OP14-001"]);
   expect(op14?.cards[0].printings).toBe(2);
-  expect(op14?.fromOtherSets.map((c) => c.number)).toEqual(["OP09-050"]);
+  // The reprint jp's OP-14 lists keeps the en printing the booster gives it:
+  // an English reader sees that one.
+  expect(op14?.fromOtherSets.map((c) => [c.number, c.imageUrl])).toEqual([["OP09-050", "https://example.test/prt_re_en.png"]]);
   // The DON placed on op14-eb04 sits on OP-14, the set its old URL moves to.
   expect(op14?.don.map((c) => c.key)).toEqual(["card_don"]);
 
   // No page per product code any more.
   expect(await t.query(api.cards.setCards, { slug: "op14-eb04" })).toBeNull();
   const counts = Object.fromEntries((await t.query(api.cards.sets, {})).map((s) => [s.slug, s.cardCount]));
-  expect(counts).toEqual({ "op-14": 3, "eb-04": 2 });
+  expect(counts).toEqual({ "op-14": 3, "eb-04": 1 });
 });

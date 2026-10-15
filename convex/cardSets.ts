@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery, type ActionCtx } from "./_generated/server";
 import { groupProducts, type ProductInput, type SetGroup } from "./cardSetsCore";
-import { inOtherSet } from "../lib/set-slug";
+import { keepsShared } from "../lib/set-slug";
 
 // Rebuilds card_sets, the set index, from the synced products. Counting the
 // distinct cards of every set at query time would read the whole printings
@@ -55,22 +55,23 @@ const setGroup = v.object({
   titles: v.object({ en: v.optional(v.string()), jp: v.optional(v.string()), cn: v.optional(v.string()) }),
   product_keys: v.array(v.string()),
   aliases: v.array(v.string()),
-  shared: v.array(v.object({ product_key: v.string(), other_sets: v.array(v.string()) })),
+  shared: v.array(v.string()),
   release_date: v.union(v.string(), v.null()),
   release_site: v.union(v.literal("en"), v.literal("jp"), v.null()),
   order: v.number(),
 });
 
 // Counts the set's distinct cards (listings that were removed do not count,
-// nor a shared product's cards numbered for its other set) and upserts its row
-// by slug. An unchanged row is not rewritten.
+// nor what keepsShared leaves off) and upserts its row by slug. An unchanged
+// row is not rewritten.
 export const upsertSet = internalMutation({
   args: { group: setGroup },
   handler: async (ctx, { group }) => {
-    const others = new Map(group.shared.map((s) => [s.product_key, s.other_sets]));
+    const sharedKeys = new Set(group.shared);
+    // Unshared products first, so a shared one can see what they list.
+    const productKeys = [...group.product_keys].sort((a, b) => Number(sharedKeys.has(a)) - Number(sharedKeys.has(b)));
     const cards = new Set<string>();
-    for (const productKey of group.product_keys) {
-      const otherSets = others.get(productKey);
+    for (const productKey of productKeys) {
       const links = await ctx.db
         .query("printing_products")
         .withIndex("by_product", (q) => q.eq("product_key", productKey))
@@ -81,13 +82,13 @@ export const upsertSet = internalMutation({
           .query("printings")
           .withIndex("by_key", (q) => q.eq("key", link.printing_key))
           .unique();
-        if (!printing) continue;
-        if (otherSets) {
+        if (!printing || cards.has(printing.card_key)) continue;
+        if (sharedKeys.has(productKey)) {
           const card = await ctx.db
             .query("cards")
             .withIndex("by_key", (q) => q.eq("key", printing.card_key))
             .unique();
-          if (inOtherSet(card?.number, otherSets)) continue;
+          if (!keepsShared(card?.number, group.code, false)) continue;
         }
         cards.add(printing.card_key);
       }

@@ -37,12 +37,15 @@ tell a rule from an accident.
   only through `product_sets` adds its cards and nothing else, so EB-04 is
   titled and dated by jp:550204, never by en's OP14-EB04 booster (agreed with
   roberto, general 93050; the data contract's Sets section says the same).
-- **A product carrying two sets splits by card number.** en's OP14-EB04 and
-  cn's two-deck starters carry two sets each. On one set's page, their cards
-  numbered for the other set are left off, and off the count: a printing's set
-  is its card number. Reprints from any other set stay, under "From other
-  sets", on both pages. Without the split the EB-04 page would list all of
-  OP-14 and OP-15.
+- **A product carrying two sets gives each only what is provably its.** en's
+  OP14-EB04 and cn's two-deck starters carry two sets each. On one set's page
+  (and in its count) such a product adds its cards numbered for that set, since
+  a printing's set is its card number, and any card the set's other products
+  list as well. A reprint in it that no other product of the set lists cannot
+  say which set it came with, so neither page takes it. Without this the EB-04
+  page lists all of OP-14 and OP-15, and cn's Luffy-and-Katakuri starter puts
+  the Katakuri deck's reprints on the ST-31 page (measured on dev: 15 cards
+  became 25).
 - **Set P is not a set page of its own.** Its products are the promo buckets,
   which the kind grouping already makes one page; the promo page keeps its URL.
   A product with no set (the en Double Packs, the limited and family buckets)

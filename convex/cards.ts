@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { locale, SITE_ORDER, type Locale } from "./lang";
-import { inOtherSet } from "../lib/set-slug";
+import { keepsShared } from "../lib/set-slug";
 
 // Public reads for the browse page. Every table here is a mirror written only
 // by dataSync, so these queries never write and never take a user.
@@ -261,10 +261,10 @@ export const setCards = query({
       .unique();
     if (!set) return null;
 
-    // A product that carries another set too lists that set's cards; they are
-    // read off by card number below and left for that set's page.
-    const others = new Map((set.shared ?? []).map((s) => [s.product_key, s.other_sets]));
-    const listed: { printing: Doc<"printings">; otherSets?: string[] }[] = [];
+    // A product that carries another set too lists that set's cards as well;
+    // keepsShared reads off which of its cards are this set's.
+    const shared = new Set(set.shared ?? []);
+    const listed: { printing: Doc<"printings">; shared: boolean }[] = [];
     for (const productKey of set.product_keys) {
       const links = await ctx.db
         .query("printing_products")
@@ -280,7 +280,7 @@ export const setCards = query({
               .unique(),
           ),
       );
-      for (const p of printings) if (p) listed.push({ printing: p, otherSets: others.get(productKey) });
+      for (const p of printings) if (p) listed.push({ printing: p, shared: shared.has(productKey) });
     }
 
     const cards = new Map<string, Doc<"cards">>();
@@ -294,10 +294,11 @@ export const setCards = query({
     )) {
       if (c) cards.set(c.key, c);
     }
+    const byOthers = new Set(listed.filter((l) => !l.shared).map((l) => l.printing.card_key));
     const linked = new Map<string, Doc<"printings">[]>();
-    for (const { printing, otherSets } of listed) {
+    for (const { printing, shared } of listed) {
       const c = cards.get(printing.card_key);
-      if (!c || inOtherSet(c.number, otherSets)) continue;
+      if (!c || (shared && !keepsShared(c.number, set.code ?? null, byOthers.has(c.key)))) continue;
       linked.set(c.key, [...(linked.get(c.key) ?? []), printing]);
     }
     const rows = await Promise.all([...linked].map(([key, printings]) => browseRow(ctx, cards.get(key)!, lang, printings)));

@@ -250,8 +250,8 @@ describe("groupProducts by product_sets", () => {
   });
 
   test("a product carrying two sets is shared, and its old slug is the first set's alias", () => {
-    expect(bySlug("op-14")?.shared).toEqual([{ product_key: "en:569114", other_sets: ["EB-04"] }]);
-    expect(bySlug("eb-04")?.shared).toEqual([{ product_key: "en:569114", other_sets: ["OP-14"] }]);
+    expect(bySlug("op-14")?.shared).toEqual(["en:569114"]);
+    expect(bySlug("eb-04")?.shared).toEqual(["en:569114"]);
     expect(bySlug("op-14")?.aliases).toEqual(["op14-eb04", "opc-14"]);
     expect(bySlug("eb-04")?.aliases).toEqual(["ebc-04"]);
   });

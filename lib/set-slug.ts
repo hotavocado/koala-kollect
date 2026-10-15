@@ -25,9 +25,10 @@ export function cardSetCode(number: string): string {
   return m ? `${m[1]}-${m[2]}` : prefix;
 }
 
-// A product carrying several sets (en OP14-EB04) lists each set's cards; on
-// one set's page, its cards numbered for its other sets belong elsewhere.
-// Cards with no number (DON) and reprints from any other set stay.
-export function inOtherSet(number: string | undefined, otherSets: readonly string[] | undefined): boolean {
-  return number !== undefined && otherSets !== undefined && otherSets.includes(cardSetCode(number));
+// A product carrying several sets (en OP14-EB04, cn's two-deck starters) lists
+// every set's cards, and a reprint in it cannot say which set it came with. So
+// on one set's page it gives only its cards numbered for that set, and the
+// cards the set's other products list as well.
+export function keepsShared(number: string | undefined, setCode: string | null, listedByOthers: boolean): boolean {
+  return listedByOthers || (number !== undefined && setCode !== null && cardSetCode(number) === setCode);
 }

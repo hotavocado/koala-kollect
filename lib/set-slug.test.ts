@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cardSetCode, globalCode, inOtherSet, setSlugFor } from "./set-slug";
+import { cardSetCode, globalCode, keepsShared, setSlugFor } from "./set-slug";
 import { movedSetPath } from "../proxy";
 
 describe("globalCode", () => {
@@ -41,12 +41,14 @@ describe("cardSetCode", () => {
     expect(cardSetCode("P-001")).toBe("P");
   });
 
-  test("inOtherSet drops only the product's other sets, never a DON", () => {
-    expect(inOtherSet("OP14-033", ["OP-14"])).toBe(true);
-    expect(inOtherSet("EB04-001", ["OP-14"])).toBe(false);
-    expect(inOtherSet("OP09-001", ["OP-14"])).toBe(false); // a reprint stays
-    expect(inOtherSet(undefined, ["OP-14"])).toBe(false);
-    expect(inOtherSet("OP14-033", undefined)).toBe(false);
+  test("a shared product gives a set its own numbers, and what the set's other products list", () => {
+    expect(keepsShared("EB04-001", "EB-04", false)).toBe(true);
+    expect(keepsShared("OP14-033", "EB-04", false)).toBe(false);
+    // A reprint: kept only when another product of the set lists it too.
+    expect(keepsShared("OP09-001", "EB-04", false)).toBe(false);
+    expect(keepsShared("OP09-001", "EB-04", true)).toBe(true);
+    expect(keepsShared(undefined, "EB-04", false)).toBe(false);
+    expect(keepsShared("P-001", null, false)).toBe(false);
   });
 });
 
