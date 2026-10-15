@@ -7,7 +7,7 @@ import { CardImage } from "../../card-image";
 import type { PrintDetail } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
 import { CardFace, ClaimLine, ListingLine, OfficialLink } from "../../printing";
-import { cardLabel, ColorDots, Notice } from "../../ui";
+import { cardLabel, ColorDots, foreignText, Notice, siteTag, textInLine } from "../../ui";
 
 // Same guard as the card page: the Convex hooks throw without a deployment.
 export function PrintDetailView({ cardKey, printKey }: { cardKey: string; printKey: string }) {
@@ -19,8 +19,8 @@ export function PrintDetailView({ cardKey, printKey }: { cardKey: string; printK
 }
 
 function ConnectedPrint({ cardKey, printKey }: { cardKey: string; printKey: string }) {
-  const { t, href } = useI18n();
-  const print = useQuery(api.cards.print, { cardKey, printKey });
+  const { t, href, lang } = useI18n();
+  const print = useQuery(api.cards.print, { cardKey, printKey, lang });
   if (print === undefined) return <p className="text-sm text-muted-foreground">{t.cards.loadingPrinting}</p>;
   if (print === null) {
     return (
@@ -36,7 +36,7 @@ function ConnectedPrint({ cardKey, printKey }: { cardKey: string; printKey: stri
 }
 
 function Print({ print: { card, site, language, listUrl, printing: p } }: { print: PrintDetail }) {
-  const { t, href, fill } = useI18n();
+  const { t, href, lang, fill } = useI18n();
   const label = cardLabel(card, t);
   return (
     <article className="flex flex-col gap-10">
@@ -54,7 +54,12 @@ function Print({ print: { card, site, language, listUrl, printing: p } }: { prin
                 {fill(t.print.allPrintings, { name: label })}
               </Link>
             </p>
-            <h1 className="mt-2 text-3xl font-semibold">{label}</h1>
+            <h1 lang={siteTag(card.nameSite)} className="mt-2 text-3xl font-semibold">
+              {label}
+            </h1>
+            {card.nameSite && foreignText(card.nameSite, lang) && (
+              <p className="mt-1 text-xs text-muted-foreground">{textInLine(card.nameSite, t)}</p>
+            )}
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
               <ColorDots colors={card.colors} />
               <span>{[card.number, p.rarity, t.variant[p.variant]].filter(Boolean).join(" · ")}</span>

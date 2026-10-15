@@ -33,6 +33,7 @@ const setGroup = v.object({
     v.literal("other"),
   ),
   title: v.string(),
+  titles: v.object({ en: v.optional(v.string()), jp: v.optional(v.string()), cn: v.optional(v.string()) }),
   product_keys: v.array(v.string()),
   release_date: v.union(v.string(), v.null()),
   release_site: v.union(v.literal("en"), v.literal("jp"), v.null()),
@@ -99,7 +100,19 @@ function sameRow(existing: Record<string, unknown>, row: Record<string, unknown>
   const { _id, _creationTime, ...stored } = existing;
   void _id;
   void _creationTime;
-  return JSON.stringify(stored, Object.keys(stored).sort()) === JSON.stringify(row, Object.keys(row).sort());
+  return JSON.stringify(sortKeys(stored)) === JSON.stringify(sortKeys(row));
+}
+
+// Key order at every depth, so titles compare by content. A replacer list of
+// the top-level keys would drop titles' own keys and miss a changed title.
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])]),
+  );
 }
 
 // Deletes the sets whose slug no longer comes out of the grouping.

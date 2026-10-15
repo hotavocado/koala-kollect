@@ -92,6 +92,7 @@ const fr = {
     trigger: "Déclenchement",
     textFromTcgplayer: "Nom issu du catalogue de TCGplayer.",
     textFrom: "Texte issu de la liste de cartes ({site}).",
+    textIn: "Langue du texte de la carte : {language}.",
     noPrintings: "Aucune impression de cette carte n'est encore répertoriée.",
     onSiteList: "Sur la liste de cartes de ce site",
     fromTcgplayer: "via TCGplayer",

@@ -18,8 +18,8 @@ export function SetCardsView({ slug }: { slug: string }) {
 
 function ConnectedSet({ slug }: { slug: string }) {
   const i18n = useI18n();
-  const { t, plural } = i18n;
-  const result = useQuery(api.cards.setCards, { slug });
+  const { t, plural, lang } = i18n;
+  const result = useQuery(api.cards.setCards, { slug, lang });
   if (result === undefined) return <p className="text-sm text-muted-foreground">{t.cards.loadingSet}</p>;
   if (result === null) {
     return <Notice title={t.set.notFoundTitle}>{t.set.notFoundBody}</Notice>;

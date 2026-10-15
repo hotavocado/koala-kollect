@@ -129,7 +129,18 @@ export default defineSchema({
     // cardSummary.chain recomputes it after every ok sync. Absent until then.
     summary: v.optional(
       v.object({
-        name: v.union(v.string(), v.null()),
+        name: v.union(v.string(), v.null()), // English first, as before names existed
+        // The current printed name on each site that has one, so a browse row
+        // can follow the reader's language. Absent on a summary stored before
+        // it existed, until the chain next runs.
+        names: v.optional(
+          v.object({
+            en: v.optional(v.string()),
+            jp: v.optional(v.string()),
+            cn: v.optional(v.string()),
+            tcgcsv: v.optional(v.string()),
+          }),
+        ),
         printings: v.number(),
         image_url: v.union(v.string(), v.null()),
       }),
@@ -420,6 +431,11 @@ export default defineSchema({
       v.literal("other"),
     ),
     title: v.string(),
+    // The title in each language the set has a product in; title is the
+    // English-first one. Absent on a row rebuilt before it existed.
+    titles: v.optional(
+      v.object({ en: v.optional(v.string()), jp: v.optional(v.string()), cn: v.optional(v.string()) }),
+    ),
     product_keys: v.array(v.string()),
     release_date: v.optional(v.string()), // en's, or jp's when en has no dated product for the code
     release_site: v.optional(v.union(v.literal("en"), v.literal("jp"))),

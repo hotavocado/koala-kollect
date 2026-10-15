@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CardImage } from "./card-image";
 import type { BrowseCard } from "@/convex/cards";
 import { useI18n } from "@/lib/i18n/client";
-import { cardLabel, ColorDots } from "./ui";
+import { cardLabel, ColorDots, siteTag } from "./ui";
 
 // Rendered by Client Components only: it reads the language from context.
 export function CardTile({ card }: { card: BrowseCard }) {
@@ -30,7 +30,11 @@ export function CardTile({ card }: { card: BrowseCard }) {
     >
       {face}
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{label}</p>
+        {/* The name may be another language's (no per-tile note: too noisy on
+            a grid), so it carries its own lang. */}
+        <p lang={card.name ? siteTag(card.nameSite) : undefined} className="truncate text-sm font-medium">
+          {label}
+        </p>
         {/* Wraps rather than truncates: two columns at phone width cut the printing count. */}
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <ColorDots colors={card.colors} />

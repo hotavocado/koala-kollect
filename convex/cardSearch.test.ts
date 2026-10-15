@@ -106,6 +106,16 @@ describe("search", () => {
     ]);
   });
 
+  test("a hit reads the reader's language, and an English match says so", async () => {
+    const t = await seed();
+    const r = await t.query(api.cardSearch.search, { q: "zoro", lang: "ja" });
+    expect(r.hits.map((h) => [h.number, h.name, h.nameSite, h.matchedName])).toEqual([
+      ["OP01-001", "ロロノア・ゾロ", "jp", "Roronoa Zoro"],
+    ]);
+    const byNumber = await t.query(api.cardSearch.search, { q: "OP01-001", lang: "ja" });
+    expect(byNumber.hits.map((h) => h.name)).toEqual(["ロロノア・ゾロ"]);
+  });
+
   test("a card matched on several sites comes back once", async () => {
     const t = await seed();
     await t.run(async (ctx) => {

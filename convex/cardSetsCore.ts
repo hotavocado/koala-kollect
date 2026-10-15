@@ -26,11 +26,15 @@ export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name
 
 export type ReleaseSite = "en" | "jp";
 
+// A set's title in each language it has a product in, keyed by site.
+export type SetTitles = { en?: string; jp?: string; cn?: string };
+
 export type SetGroup = {
   slug: string;
   code: string | null;
   kind: SetKind;
   title: string;
+  titles: SetTitles;
   product_keys: string[];
   release_date: string | null;
   release_site: ReleaseSite | null;
@@ -62,8 +66,7 @@ const BUCKET_TITLE: Record<SetKind, string> = {
 // Whose product name becomes the title: en writes titles, often in capitals
 // (englishTitle evens those out), and jp and cn only in their own languages,
 // so a product's own name_en goes ahead of theirs.
-const ENGLISH_SITES: Doc<"products">["site"][] = ["en"];
-const OTHER_SITES: Doc<"products">["site"][] = ["jp", "cn"];
+const OTHER_SITES = ["jp", "cn"] as const;
 
 // Written as the products print them, so englishTitle leaves them alone.
 const BRAND_PHRASES = ["ONE PIECE CARD THE BEST", "ONE PIECE", "KAMI"];
@@ -118,16 +121,26 @@ function recase(title: string): string {
   return out.replace(/\u0000(\d+)\u0000/g, (_, n: string) => kept[Number(n)]);
 }
 
-// The set's title from its products: an English site's name first, then any
-// product's own name_en (written by the data repo, so used as it is), then
-// the other sites' names.
-function setTitle(products: ProductInput[]): string | null {
-  const english = ENGLISH_SITES.map((s) => products.find((p) => p.site === s)).find(Boolean);
-  if (english) return englishTitle(productTitle(english.name)) || null;
-  const nameEn = products.find((p) => p.name_en)?.name_en;
-  if (nameEn) return nameEn;
-  const other = OTHER_SITES.map((s) => products.find((p) => p.site === s)).find(Boolean);
-  return (other && productTitle(other.name)) || null;
+// The set's title in each language from its products. English is the en
+// site's name, else any product's own name_en (written by the data repo, so
+// used as it is); jp and cn are their own site's name. A language with no
+// product, or an empty name, is left out.
+export function setTitles(products: ProductInput[]): SetTitles {
+  const titles: SetTitles = {};
+  const en = products.find((p) => p.site === "en");
+  const english = en ? englishTitle(productTitle(en.name)) : products.find((p) => p.name_en)?.name_en;
+  if (english) titles.en = english;
+  for (const site of OTHER_SITES) {
+    const own = products.find((p) => p.site === site);
+    const title = own && productTitle(own.name);
+    if (title) titles[site] = title;
+  }
+  return titles;
+}
+
+// The English-first title: English, then the other sites'.
+function setTitle(titles: SetTitles): string | null {
+  return titles.en ?? titles.jp ?? titles.cn ?? null;
 }
 
 // "BOOSTER PACK -Royal Blood- [OP-10]" -> "Royal Blood" (en).
@@ -183,10 +196,11 @@ export function groupProducts(products: ProductInput[]): SetGroup[] {
   }
 
   const groups = [...bySlug].map(([slug, g]) => {
-    let title = BUCKET_TITLE[g.kind];
-    if (g.code !== null) {
-      title = setTitle(g.products) ?? g.code;
-    }
+    // A bucket's English title is ours (its en product is "Promotion card"),
+    // but jp and cn name their buckets well enough to show as they are.
+    const titles = setTitles(g.products);
+    if (g.code === null) titles.en = BUCKET_TITLE[g.kind];
+    const title = g.code === null ? BUCKET_TITLE[g.kind] : (setTitle(titles) ?? g.code);
     const en = siteDate(g.products, "en");
     const jp = en === null ? siteDate(g.products, "jp") : null;
     return {
@@ -194,6 +208,7 @@ export function groupProducts(products: ProductInput[]): SetGroup[] {
       code: g.code,
       kind: g.kind,
       title,
+      titles,
       product_keys: g.products.map((p) => p.key).sort(),
       release_date: en ?? jp,
       release_site: en !== null ? ("en" as const) : jp !== null ? ("jp" as const) : null,
