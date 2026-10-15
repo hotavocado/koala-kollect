@@ -1,4 +1,4 @@
-import { upstreamImageUrl } from "@/app/cards/image";
+import { upstreamImageUrl } from "@/lib/card-image";
 
 const USER_AGENT = "koala-kollect (+https://github.com/hotavocado/koala-kollect)";
 

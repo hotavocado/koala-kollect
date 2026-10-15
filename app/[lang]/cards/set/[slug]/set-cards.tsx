@@ -4,30 +4,30 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { BrowseCard } from "@/convex/cards";
 import { CardTile } from "../../card-tile";
-import { Notice, releaseLabel, SET_KIND_LABEL } from "../../ui";
+import { useI18n } from "@/lib/i18n/client";
+import { Notice, releaseLabel } from "../../ui";
 
 // Same guard as the index: the Convex hooks throw without a deployment.
 export function SetCardsView({ slug }: { slug: string }) {
+  const { t } = useI18n();
   if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
-    return (
-      <Notice title="The card database isn't connected">
-        This build has no Convex deployment configured.
-      </Notice>
-    );
+    return <Notice title={t.site.notConnectedTitle}>{t.site.notConnectedBody}</Notice>;
   }
   return <ConnectedSet slug={slug} />;
 }
 
 function ConnectedSet({ slug }: { slug: string }) {
+  const i18n = useI18n();
+  const { t, plural } = i18n;
   const result = useQuery(api.cards.setCards, { slug });
-  if (result === undefined) return <p className="text-sm text-muted-foreground">Loading set…</p>;
+  if (result === undefined) return <p className="text-sm text-muted-foreground">{t.cards.loadingSet}</p>;
   if (result === null) {
-    return <Notice title="Set not found">There is no set at this address in the database.</Notice>;
+    return <Notice title={t.set.notFoundTitle}>{t.set.notFoundBody}</Notice>;
   }
 
   const { set, cards, fromOtherSets, don } = result;
   const total = cards.length + fromOtherSets.length + don.length;
-  const released = releaseLabel(set, "day");
+  const released = releaseLabel(set, "day", i18n);
   return (
     <>
       <h1 className="text-3xl font-semibold">{set.title}</h1>
@@ -38,7 +38,7 @@ function ConnectedSet({ slug }: { slug: string }) {
           </span>
         )}
         <span>
-          {SET_KIND_LABEL[set.kind]} · {total} card{total === 1 ? "" : "s"}
+          {t.setKind[set.kind]} · {plural(t.count.cards, total)}
           {released && (
             <>
               {" · "}
@@ -50,19 +50,15 @@ function ConnectedSet({ slug }: { slug: string }) {
       <CardGrid cards={cards} />
       {fromOtherSets.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">From other sets</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cards first printed elsewhere that this set also includes, such as SP cards and reprints.
-          </p>
+          <h2 className="text-lg font-semibold">{t.set.fromOtherSets}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t.set.fromOtherSetsBody}</p>
           <CardGrid cards={fromOtherSets} />
         </section>
       )}
       {don.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">DON!! cards</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            DON!! cards that come with this set. They have no card number, so they sit apart from the list above.
-          </p>
+          <h2 className="text-lg font-semibold">{t.set.don}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t.set.donBody}</p>
           <CardGrid cards={don} />
         </section>
       )}

@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { SearchHit, SearchResult } from "@/convex/cardSearch";
 import { SEARCH_LIMIT } from "@/convex/cardSearchCore";
+import { useI18n } from "@/lib/i18n/client";
 import { CardImage } from "./card-image";
 import { SetIndex } from "./set-index";
 import { cardLabel, ColorDots } from "./ui";
@@ -24,6 +25,7 @@ export function CardFinder() {
 }
 
 function ConnectedFinder() {
+  const { t, href } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -54,8 +56,8 @@ function ConnectedFinder() {
     if (openOnArrival.current === null || openOnArrival.current !== term || live === undefined) return;
     openOnArrival.current = null;
     const top = live.hits[0];
-    if (top) router.push(`/cards/${top.key}`);
-  }, [term, live, router]);
+    if (top) router.push(href(`/cards/${top.key}`));
+  }, [term, live, router, href]);
 
   const listId = useId();
   return (
@@ -68,7 +70,7 @@ function ConnectedFinder() {
           if (!next) return;
           if (next === term && live !== undefined) {
             const top = live.hits[0];
-            if (top) router.push(`/cards/${top.key}`);
+            if (top) router.push(href(`/cards/${top.key}`));
             return;
           }
           openOnArrival.current = next;
@@ -79,14 +81,14 @@ function ConnectedFinder() {
         }}
       >
         <label htmlFor={`${listId}-q`} className="sr-only">
-          Find a card by number or name
+          {t.finder.label}
         </label>
         <input
           id={`${listId}-q`}
           type="search"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Card number or name, e.g. OP01-001 or Nami"
+          placeholder={t.finder.placeholder}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
@@ -101,17 +103,18 @@ function ConnectedFinder() {
 }
 
 function Results({ id, term, result }: { id: string; term: string; result: SearchResult | undefined }) {
-  if (result === undefined) return <p className="text-sm text-muted-foreground">Searching…</p>;
+  const { t, fill } = useI18n();
+  if (result === undefined) return <p className="text-sm text-muted-foreground">{t.finder.searching}</p>;
   if (result.hits.length === 0) {
     return (
       <p id={id} className="text-sm text-muted-foreground" aria-live="polite">
-        No card matches “{term}”. Try a card number like OP01-001 or P-034, or part of a name.
+        {fill(t.finder.noMatch, { term })}
       </p>
     );
   }
   return (
     <section aria-live="polite">
-      <h2 className="sr-only">Search results</h2>
+      <h2 className="sr-only">{t.finder.results}</h2>
       <ul id={id} className="flex flex-col gap-2">
         {result.hits.map((hit) => (
           <li key={hit.key}>
@@ -121,7 +124,7 @@ function Results({ id, term, result }: { id: string; term: string; result: Searc
       </ul>
       {result.hits.length >= SEARCH_LIMIT && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Showing the first {result.hits.length}. Type more of the number or name to narrow it.
+          {fill(t.finder.showingFirst, { n: result.hits.length })}
         </p>
       )}
     </section>
@@ -129,10 +132,11 @@ function Results({ id, term, result }: { id: string; term: string; result: Searc
 }
 
 function ResultRow({ hit }: { hit: SearchHit }) {
-  const label = cardLabel(hit);
+  const { t, href, plural } = useI18n();
+  const label = cardLabel(hit, t);
   return (
     <Link
-      href={`/cards/${hit.key}`}
+      href={href(`/cards/${hit.key}`)}
       className="flex items-center gap-3 rounded-lg bg-layer-1 p-2 pr-4 transition-colors hover:bg-layer-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <CardImage
@@ -151,9 +155,7 @@ function ResultRow({ hit }: { hit: SearchHit }) {
         )}
         <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <ColorDots colors={hit.colors} />
-          <span className="whitespace-nowrap">
-            {hit.printings} printing{hit.printings === 1 ? "" : "s"}
-          </span>
+          <span className="whitespace-nowrap">{plural(t.count.printings, hit.printings)}</span>
         </span>
       </span>
       {hit.number && (

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { MINOKOALA } from "../minokoala";
-import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS, cardImageSrc, optimizedImageUrl, proxiedImageUrl, upstreamImageUrl } from "./image";
+import { MINOKOALA } from "@/app/minokoala";
+import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS, cardImageSrc, optimizedImageUrl, proxiedImageUrl, upstreamImageUrl } from "@/lib/card-image";
 
 describe("proxiedImageUrl", () => {
   test("each official host maps to our path and back", () => {
@@ -135,7 +135,7 @@ describe("optimizedImageUrl", () => {
   // back to the full image), a width the config lists that nothing asks for
   // is one more derivative anyone could request.
   test("next.config.ts lists exactly the widths and quality CardImage and the homepage Minokoala use", async () => {
-    const { default: config } = await import("../../next.config");
+    const { default: config } = await import("../next.config");
     const listed = [...(config.images?.imageSizes ?? []), ...(config.images?.deviceSizes ?? [])].sort((a, b) => a - b);
     expect(listed).toEqual([...Object.values(CARD_IMAGE_WIDTHS), MINOKOALA.derivative].sort((a, b) => a - b));
     expect(config.images?.qualities).toEqual([CARD_IMAGE_QUALITY]);
