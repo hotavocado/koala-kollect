@@ -27,3 +27,31 @@ tell a rule from an accident.
 - The rule lives in one pure function on the server, and the print page's
   section choice in `printOrigin` (app/[lang]/cards/ui.tsx), so both are
   unit-tested without a database or a DOM.
+
+## 2026-10-15: one set page across languages
+
+- **`product_sets` decides which products and cards a set page shows; the
+  set's own products decide what it is.** A set's own products are those whose
+  code is the set's code, cn's language letter dropped (OPC-14 is OP-14). Only
+  they give the title, kind and release date. A product that holds the set
+  only through `product_sets` adds its cards and nothing else, so EB-04 is
+  titled and dated by jp:550204, never by en's OP14-EB04 booster (agreed with
+  roberto, general 93050; the data contract's Sets section says the same).
+- **A product carrying two sets gives each only what is provably its.** en's
+  OP14-EB04 and cn's two-deck starters carry two sets each. On one set's page
+  (and in its count) such a product adds its cards numbered for that set, since
+  a printing's set is its card number, and any card the set's other products
+  list as well. A reprint in it that no other product of the set lists cannot
+  say which set it came with, so neither page takes it. Without this the EB-04
+  page lists all of OP-14 and OP-15, and cn's Luffy-and-Katakuri starter puts
+  the Katakuri deck's reprints on the ST-31 page (measured on dev: 15 cards
+  became 25).
+- **Set P is not a set page of its own.** Its products are the promo buckets,
+  which the kind grouping already makes one page; the promo page keeps its URL.
+  A product with no set (the en Double Packs, the limited and family buckets)
+  keeps the grouping it had: by its code, or by kind.
+- **Old set URLs move for good.** The pages per product code (opc-09,
+  op14-eb04) are gone; the proxy answers them with a 308 to the set page, by
+  one pure rule in `lib/set-slug.ts` (drop cn's letter, take a combined code's
+  first set). The set row keeps those old slugs as `aliases` so DON cards that
+  `don_sets` still places on them show on the page they moved to.

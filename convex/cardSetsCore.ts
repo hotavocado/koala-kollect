@@ -1,9 +1,11 @@
 import type { Doc } from "./_generated/dataModel";
+import { globalCode, setSlugFor } from "../lib/set-slug";
 
 // Pure grouping for the set index: products from every site become one set
-// per product code, and the code-less per-site buckets (promotion cards,
-// limited product cards, family deck sets) become one set per kind. No
-// database access here, so the rules are unit-tested directly.
+// per global set code (product_sets says which sets a product carries), and
+// the code-less per-site buckets (promotion cards, limited product cards,
+// family deck sets) become one set per kind. No database access here, so the
+// rules are unit-tested directly.
 
 export type SetKind = "booster" | "extra" | "premium" | "starter" | "promo" | "limited" | "family" | "other";
 
@@ -22,7 +24,11 @@ export const SET_KIND_ORDER: readonly SetKind[] = [
   "other",
 ];
 
-export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name" | "name_en" | "kind" | "release_date">;
+// sets: the product's set keys from product_sets. A product with none groups
+// by its own code, or by kind when it has no code.
+export type ProductInput = Pick<Doc<"products">, "key" | "site" | "code" | "name" | "name_en" | "kind" | "release_date"> & {
+  sets?: string[];
+};
 
 export type ReleaseSite = "en" | "jp";
 
@@ -36,10 +42,20 @@ export type SetGroup = {
   title: string;
   titles: SetTitles;
   product_keys: string[];
+  // Old product-code slugs whose page this set now is (opc-09, op14-eb04):
+  // don_sets still places DON cards by those.
+  aliases: string[];
+  // Products that carry another set as well: they add only this set's
+  // numbers, and cards the set's other products list too (keepsShared).
+  shared: string[];
   release_date: string | null;
   release_site: ReleaseSite | null;
   order: number;
 };
+
+// Uncoded promos carry set P: the promo buckets of every site, which the
+// kind grouping already makes one page.
+const PROMO_SET = "P";
 
 const KIND_OF: Record<Doc<"products">["kind"], SetKind> = {
   booster: "booster",
@@ -185,31 +201,55 @@ function compareSets(a: Omit<SetGroup, "order">, b: Omit<SetGroup, "order">): nu
   );
 }
 
+function setsOf(p: ProductInput): string[] {
+  return (p.sets ?? []).filter((s) => s !== PROMO_SET).sort();
+}
+
+const SITE_RANK = { en: 0, jp: 1, cn: 2 } as const;
+
 export function groupProducts(products: ProductInput[]): SetGroup[] {
-  const bySlug = new Map<string, { code: string | null; kind: SetKind; products: ProductInput[] }>();
-  for (const p of products) {
-    const kind = KIND_OF[p.kind];
-    const slug = p.code ? p.code.toLowerCase() : kind;
+  type Draft = { code: string | null; isSet: boolean; products: ProductInput[] };
+  const bySlug = new Map<string, Draft>();
+  const add = (slug: string, code: string | null, isSet: boolean, p: ProductInput) => {
     const group = bySlug.get(slug);
     if (group) group.products.push(p);
-    else bySlug.set(slug, { code: p.code ?? null, kind, products: [p] });
+    else bySlug.set(slug, { code, isSet, products: [p] });
+  };
+  for (const p of products) {
+    const sets = setsOf(p);
+    if (sets.length > 0) for (const set of sets) add(set.toLowerCase(), set, true, p);
+    else add(p.code ? p.code.toLowerCase() : KIND_OF[p.kind], p.code ?? null, false, p);
   }
 
   const groups = [...bySlug].map(([slug, g]) => {
+    // A set is what its own products say: those whose code is the set's code
+    // (cn's letter dropped). A product holding the set only through
+    // product_sets (en OP14-EB04 in EB-04) adds its cards, never the title,
+    // kind or date. Without an own product, every product speaks.
+    const own = g.isSet ? g.products.filter((p) => p.code && globalCode(p.code) === g.code) : [];
+    const named = (own.length > 0 ? own : g.products).slice();
+    if (g.isSet) named.sort((a, b) => SITE_RANK[a.site] - SITE_RANK[b.site]);
+    const kind = KIND_OF[named[0].kind];
     // A bucket's English title is ours (its en product is "Promotion card"),
     // but jp and cn name their buckets well enough to show as they are.
-    const titles = setTitles(g.products);
-    if (g.code === null) titles.en = BUCKET_TITLE[g.kind];
-    const title = g.code === null ? BUCKET_TITLE[g.kind] : (setTitle(titles) ?? g.code);
-    const en = siteDate(g.products, "en");
-    const jp = en === null ? siteDate(g.products, "jp") : null;
+    const titles = setTitles(named);
+    if (g.code === null) titles.en = BUCKET_TITLE[kind];
+    const title = g.code === null ? BUCKET_TITLE[kind] : (setTitle(titles) ?? g.code);
+    const en = siteDate(named, "en");
+    const jp = en === null ? siteDate(named, "jp") : null;
+    const aliases = g.isSet
+      ? [...new Set(g.products.flatMap((p) => (p.code && p.code.toLowerCase() !== slug && setSlugFor(p.code) === slug ? [p.code.toLowerCase()] : [])))].sort()
+      : [];
+    const shared = g.isSet ? g.products.filter((p) => setsOf(p).length > 1).map((p) => p.key).sort() : [];
     return {
       slug,
       code: g.code,
-      kind: g.kind,
+      kind,
       title,
       titles,
       product_keys: g.products.map((p) => p.key).sort(),
+      aliases,
+      shared,
       release_date: en ?? jp,
       release_site: en !== null ? ("en" as const) : jp !== null ? ("jp" as const) : null,
     };

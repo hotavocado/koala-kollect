@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { locale, SITE_ORDER, type Locale } from "./lang";
+import { keepsShared } from "../lib/set-slug";
 
 // Public reads for the browse page. Every table here is a mirror written only
 // by dataSync, so these queries never write and never take a user.
@@ -153,8 +154,9 @@ export async function browseRow(
   };
 }
 
-// The set index: one row per product code across sites, plus the promotion,
-// limited and family buckets, in card_sets order (kind, then newest code).
+// The set index: one row per set across sites (and per code of a product with
+// no set), plus the promotion, limited and family buckets, in card_sets order
+// (kind, then newest code).
 export type CardSetRow = {
   slug: string;
   code: string | null;
@@ -204,14 +206,20 @@ export function ownPrefixes(code: string | null): string[] {
 // thumbnail is the DON's own tcgcsv printing. Ordered by design.
 async function setDon(
   ctx: QueryCtx,
-  slug: string,
+  slugs: string[],
   lang: Locale,
   listed: Map<string, unknown>,
 ): Promise<BrowseCard[]> {
-  const placed = await ctx.db
-    .query("don_sets")
-    .withIndex("by_set_slug", (q) => q.eq("set_slug", slug))
-    .collect();
+  const placed = (
+    await Promise.all(
+      slugs.map((slug) =>
+        ctx.db
+          .query("don_sets")
+          .withIndex("by_set_slug", (q) => q.eq("set_slug", slug))
+          .collect(),
+      ),
+    )
+  ).flat();
   const rows = await Promise.all(
     placed
       .filter((d) => !listed.has(d.key))
@@ -253,7 +261,10 @@ export const setCards = query({
       .unique();
     if (!set) return null;
 
-    const linked = new Map<string, Doc<"printings">[]>();
+    // A product that carries another set too lists that set's cards as well;
+    // keepsShared reads off which of its cards are this set's.
+    const shared = new Set(set.shared ?? []);
+    const listed: { printing: Doc<"printings">; shared: boolean }[] = [];
     for (const productKey of set.product_keys) {
       const links = await ctx.db
         .query("printing_products")
@@ -269,18 +280,28 @@ export const setCards = query({
               .unique(),
           ),
       );
-      for (const p of printings) if (p) linked.set(p.card_key, [...(linked.get(p.card_key) ?? []), p]);
+      for (const p of printings) if (p) listed.push({ printing: p, shared: shared.has(productKey) });
     }
 
-    const cards = await Promise.all(
-      [...linked.keys()].map((key) =>
+    const cards = new Map<string, Doc<"cards">>();
+    for (const c of await Promise.all(
+      [...new Set(listed.map((l) => l.printing.card_key))].map((key) =>
         ctx.db
           .query("cards")
           .withIndex("by_key", (q) => q.eq("key", key))
           .unique(),
       ),
-    );
-    const rows = await Promise.all(cards.flatMap((c) => (c ? [browseRow(ctx, c, lang, linked.get(c.key))] : [])));
+    )) {
+      if (c) cards.set(c.key, c);
+    }
+    const byOthers = new Set(listed.filter((l) => !l.shared).map((l) => l.printing.card_key));
+    const linked = new Map<string, Doc<"printings">[]>();
+    for (const { printing, shared } of listed) {
+      const c = cards.get(printing.card_key);
+      if (!c || (shared && !keepsShared(c.number, set.code ?? null, byOthers.has(c.key)))) continue;
+      linked.set(c.key, [...(linked.get(c.key) ?? []), printing]);
+    }
+    const rows = await Promise.all([...linked].map(([key, printings]) => browseRow(ctx, cards.get(key)!, lang, printings)));
     // Numbered cards by number (numeric, so -9 before -10), then DON by design.
     rows.sort(
       (a, b) =>
@@ -295,7 +316,7 @@ export const setCards = query({
     const own = ownPrefixes(set.code ?? null);
     const isOwn = (c: BrowseCard) => own.length === 0 || own.includes(c.number?.split("-")[0] ?? "");
     const ownCards = rows.filter(isOwn);
-    const don = await setDon(ctx, slug, lang, linked);
+    const don = await setDon(ctx, [set.slug, ...(set.aliases ?? [])], lang, linked);
     if (ownCards.length * 2 < rows.length) return { set: setRow(set, lang), cards: rows, fromOtherSets: [], don };
     return { set: setRow(set, lang), cards: ownCards, fromOtherSets: rows.filter((c) => !isOwn(c)), don };
   },

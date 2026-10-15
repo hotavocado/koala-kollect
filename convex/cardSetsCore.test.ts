@@ -186,3 +186,79 @@ describe("groupProducts by release date", () => {
     expect(by("promo")).toMatchObject({ release_date: null, release_site: null });
   });
 });
+
+// Shaped on koala-kollect-data at 653730a: product_sets joins a set across
+// languages, and en's combined boosters carry two sets.
+describe("groupProducts by product_sets", () => {
+  const sets = (p: ProductInput, ...keys: string[]): ProductInput => ({ ...p, sets: keys });
+  const products: ProductInput[] = [
+    sets({ ...product("en", "OP-14", "BOOSTER PACK -THE AZURE SEA’S SEVEN- [OP-14]", "booster"), release_date: "2026-01-16" }, "OP-14"),
+    sets(
+      {
+        ...product("en", "OP14-EB04", "BOOSTER PACK -THE AZURE SEA’S SEVEN- [OP14-EB04]", "booster"),
+        key: "en:569114",
+        release_date: "2026-01-16",
+      },
+      "EB-04",
+      "OP-14",
+    ),
+    sets({ ...product("jp", "OP-14", "ブースターパック 蒼海の七傑【OP-14】", "booster"), release_date: "2025-11-22" }, "OP-14"),
+    sets(product("cn", "OPC-14", "补充包 苍海七杰【OPC-14】", "booster"), "OP-14"),
+    sets(
+      {
+        ...product("jp", "EB-04", "エクストラブースター EGGHEAD CRISIS【EB-04】", "extra"),
+        key: "jp:550204",
+        name_en: "EGGHEAD CRISIS",
+        release_date: "2026-01-31",
+      },
+      "EB-04",
+    ),
+    sets(product("cn", "EBC-04", "特别补充包 艾格赫德危机【EBC-04】", "extra"), "EB-04"),
+    sets(product("en", undefined, "Promotion card", "promo_bucket"), "P"),
+    sets(product("jp", undefined, "プロモーションカード", "promo_bucket"), "P"),
+    product("en", "DP-01", "Double Pack Set Vol.1 [DP-01]", "other"),
+  ];
+  const groups = groupProducts(products);
+  const bySlug = (slug: string) => groups.find((g) => g.slug === slug);
+
+  test("one page per set across languages; no page per product code", () => {
+    expect(groups.map((g) => g.slug).sort()).toEqual(["dp-01", "eb-04", "op-14", "promo"]);
+    expect(bySlug("op-14")?.product_keys).toEqual(["cn:OPC-14", "en:569114", "en:OP-14", "jp:OP-14"]);
+    expect(bySlug("eb-04")?.product_keys).toEqual(["cn:EBC-04", "en:569114", "jp:550204"]);
+  });
+
+  test("EB-04 is titled, kinded and dated by jp:550204, never by the en booster that holds it", () => {
+    expect(bySlug("eb-04")).toMatchObject({
+      code: "EB-04",
+      kind: "extra",
+      title: "EGGHEAD CRISIS",
+      titles: { en: "EGGHEAD CRISIS", jp: "エクストラブースター EGGHEAD CRISIS", cn: "特别补充包 艾格赫德危机" },
+      release_date: "2026-01-31",
+      release_site: "jp",
+    });
+  });
+
+  test("cn's product titles its own language on the global set", () => {
+    expect(bySlug("op-14")).toMatchObject({
+      code: "OP-14",
+      kind: "booster",
+      title: "The Azure Sea’s Seven",
+      titles: { en: "The Azure Sea’s Seven", jp: "ブースターパック 蒼海の七傑", cn: "补充包 苍海七杰" },
+      release_date: "2026-01-16",
+      release_site: "en",
+    });
+  });
+
+  test("a product carrying two sets is shared, and its old slug is the first set's alias", () => {
+    expect(bySlug("op-14")?.shared).toEqual(["en:569114"]);
+    expect(bySlug("eb-04")?.shared).toEqual(["en:569114"]);
+    expect(bySlug("op-14")?.aliases).toEqual(["op14-eb04", "opc-14"]);
+    expect(bySlug("eb-04")?.aliases).toEqual(["ebc-04"]);
+  });
+
+  test("set P stays the promo bucket, and a product with no set keeps its code's page", () => {
+    expect(bySlug("promo")).toMatchObject({ code: null, kind: "promo", title: "Promotion cards", aliases: [], shared: [] });
+    expect(bySlug("promo")?.product_keys).toEqual(["en:promo_bucket", "jp:promo_bucket"]);
+    expect(bySlug("dp-01")).toMatchObject({ code: "DP-01", kind: "other", aliases: [], shared: [] });
+  });
+});

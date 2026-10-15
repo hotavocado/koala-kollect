@@ -338,3 +338,94 @@ test("a set with no DON placed on it has an empty DON list", async () => {
   await t.action(internal.cardSets.rebuild, {});
   expect((await t.query(api.cards.setCards, { slug: "op-01" }))?.don).toEqual([]);
 });
+
+// Shaped on koala-kollect-data at 653730a: en's combined OP14-EB04 booster
+// carries OP-14 and EB-04, which jp and cn print as their own products.
+async function seedSharedSets() {
+  const t = convexTest(schema, modules);
+  await t.run(async (ctx) => {
+    for (const c of [
+      card("card_op14", "OP14-001"),
+      card("card_eb04", "EB04-001"),
+      card("card_re", "OP09-050"),
+      card("card_re2", "EB01-002"),
+    ]) {
+      await ctx.db.insert("cards", c);
+    }
+    for (const p of [
+      printing("prt_op14_en", "card_op14", "en"),
+      printing("prt_eb04_en", "card_eb04", "en"),
+      printing("prt_re_en", "card_re", "en"),
+      printing("prt_re2_en", "card_re2", "en"),
+      printing("prt_eb04_jp", "card_eb04", "jp"),
+      printing("prt_op14_jp", "card_op14", "jp"),
+      printing("prt_re_jp", "card_re", "jp"),
+    ]) {
+      await ctx.db.insert("printings", p);
+    }
+    const base = { first_seen_at: T };
+    for (const p of [
+      { ...base, key: "en:OP-14", site: "en" as const, series_id: "en:OP-14", code: "OP-14", kind: "booster" as const, release_date: "2026-01-16", name: "BOOSTER PACK -THE AZURE SEA’S SEVEN- [OP14-EB04]" },
+      { ...base, key: "en:569114", site: "en" as const, series_id: "569114", code: "OP14-EB04", kind: "booster" as const, release_date: "2026-01-16", name: "BOOSTER PACK -THE AZURE SEA’S SEVEN- [OP14-EB04]" },
+      { ...base, key: "jp:550114", site: "jp" as const, series_id: "550114", code: "OP-14", kind: "booster" as const, release_date: "2025-11-22", name: "ブースターパック 蒼海の七傑【OP-14】" },
+      { ...base, key: "jp:550204", site: "jp" as const, series_id: "550204", code: "EB-04", kind: "extra" as const, release_date: "2026-01-31", name: "エクストラブースター EGGHEAD CRISIS【EB-04】", name_en: "EGGHEAD CRISIS" },
+    ]) {
+      await ctx.db.insert("products", p);
+    }
+    for (const [product_key, set_key] of [
+      ["en:OP-14", "OP-14"],
+      ["en:569114", "OP-14"],
+      ["en:569114", "EB-04"],
+      ["jp:550114", "OP-14"],
+      ["jp:550204", "EB-04"],
+    ]) {
+      await ctx.db.insert("product_sets", { key: `${product_key}@${set_key}`, product_key, set_key });
+    }
+    for (const l of [
+      link("prt_op14_en", "en:569114"),
+      link("prt_eb04_en", "en:569114"),
+      // Two reprints in the combined booster: jp's OP-14 lists OP09-050 too, so
+      // it is OP-14's; EB01-002 no other product lists, so neither set takes it.
+      link("prt_re_en", "en:569114"),
+      link("prt_re2_en", "en:569114"),
+      link("prt_op14_jp", "jp:550114"),
+      link("prt_re_jp", "jp:550114"),
+      link("prt_eb04_jp", "jp:550204"),
+    ]) {
+      await ctx.db.insert("printing_products", l);
+    }
+    // Placed on the combined booster's old slug, before sets joined.
+    await ctx.db.insert("cards", don("card_don", "OP-14:jinbe"));
+    await ctx.db.insert("don_sets", donSet("card_don", "OP-14:jinbe", "op14-eb04"));
+  });
+  return t;
+}
+
+test("a set joins its products across languages; a shared booster gives it only its own cards", async () => {
+  const t = await seedSharedSets();
+  expect(await t.action(internal.cardSets.rebuild, {})).toEqual({ sets: 2, pruned: 0 });
+
+  // EB-04 holds the en booster only through product_sets: its title, kind and
+  // date are jp:550204's, and the booster's OP14 card is not on its page.
+  const eb04 = await t.query(api.cards.setCards, { slug: "eb-04" });
+  expect(eb04?.set).toMatchObject({ code: "EB-04", kind: "extra", title: "EGGHEAD CRISIS", releaseDate: "2026-01-31", releaseSite: "jp" });
+  expect(eb04?.cards.map((c) => c.number)).toEqual(["EB04-001"]);
+  expect(eb04?.cards[0].printings).toBe(2);
+  expect(eb04?.fromOtherSets).toEqual([]);
+  expect([...(eb04?.cards ?? []), ...(eb04?.fromOtherSets ?? [])].some((c) => c.number?.startsWith("OP14-"))).toBe(false);
+  expect(eb04?.don).toEqual([]);
+
+  const op14 = await t.query(api.cards.setCards, { slug: "op-14" });
+  expect(op14?.cards.map((c) => c.number)).toEqual(["OP14-001"]);
+  expect(op14?.cards[0].printings).toBe(2);
+  // The reprint jp's OP-14 lists keeps the en printing the booster gives it:
+  // an English reader sees that one.
+  expect(op14?.fromOtherSets.map((c) => [c.number, c.imageUrl])).toEqual([["OP09-050", "https://example.test/prt_re_en.png"]]);
+  // The DON placed on op14-eb04 sits on OP-14, the set its old URL moves to.
+  expect(op14?.don.map((c) => c.key)).toEqual(["card_don"]);
+
+  // No page per product code any more.
+  expect(await t.query(api.cards.setCards, { slug: "op14-eb04" })).toBeNull();
+  const counts = Object.fromEntries((await t.query(api.cards.sets, {})).map((s) => [s.slug, s.cardCount]));
+  expect(counts).toEqual({ "op-14": 3, "eb-04": 1 });
+});
