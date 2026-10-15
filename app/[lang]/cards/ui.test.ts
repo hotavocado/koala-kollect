@@ -217,28 +217,53 @@ describe("printOrigin", () => {
 });
 
 describe("countLine", () => {
-  const en = (entry: Parameters<typeof plural>[1], n: number) => plural("en", entry, n);
-  const ja = (entry: Parameters<typeof plural>[1], n: number) => plural("ja", entry, n);
+  type Vars = Record<string, string | number>;
+  const en = (entry: Parameters<typeof plural>[1], n: number, vars?: Vars) => plural("en", entry, n, vars);
+  const ja = (entry: Parameters<typeof plural>[1], n: number, vars?: Vars) => plural("ja", entry, n, vars);
+  const counts = (designs: number, languages: number, unreviewed: number, exclusive = {}) => ({
+    designs,
+    languages,
+    unreviewed,
+    exclusive,
+  });
 
-  test("no designs: the printing count alone", () => {
+  test("a summary stored before design counts: the printing count alone", () => {
     expect(countLine(12, null, enDict, en)).toBe("12 printings");
   });
 
+  test("no designs yet: printings across languages, every one unreviewed", () => {
+    expect(countLine(8, counts(0, 3, 8), enDict, en)).toBe("8 printings across 3 languages · 8 unreviewed");
+    expect(countLine(1, counts(0, 1, 1), enDict, en)).toBe("1 printing across 1 language · 1 unreviewed");
+    expect(countLine(8, counts(0, 3, 8), jaDict, ja)).toBe("3言語で8プリント · 未確認8件");
+  });
+
+  test("no printings: the printing count alone, not across zero languages", () => {
+    expect(countLine(0, counts(0, 0, 0), enDict, en)).toBe("0 printings");
+  });
+
   test("designs: the design line, with the unreviewed count only when there are some", () => {
-    expect(countLine(12, { designs: 2, languages: 3, unreviewed: 4 }, enDict, en)).toBe(
-      "2 designs across 3 languages, 12 printings · 4 unreviewed",
+    expect(countLine(12, counts(2, 3, 4), enDict, en)).toBe("2 designs across 3 languages, 12 printings · 4 unreviewed");
+    expect(countLine(12, counts(2, 3, 0), enDict, en)).toBe("2 designs across 3 languages, 12 printings");
+    expect(countLine(1, counts(1, 1, 0), enDict, en)).toBe("1 design across 1 language, 1 printing");
+  });
+
+  test("exclusive designs by language, in page order, after the unreviewed count", () => {
+    expect(countLine(9, counts(4, 3, 0, { cn: 3 }), enDict, en)).toBe(
+      "4 designs across 3 languages, 9 printings · 3 cn exclusive",
     );
+    expect(countLine(9, counts(4, 3, 2, { cn: 1, en: 2, jp: 0 }), enDict, en)).toBe(
+      "4 designs across 3 languages, 9 printings · 2 unreviewed · 2 en exclusive · 1 cn exclusive",
+    );
+    expect(countLine(9, counts(4, 3, 0, { cn: 3 }), jaDict, ja)).toBe("3言語で4デザイン、9プリント · 中国語限定3件");
+  });
+
+  test("counts from a backend without exclusive counts read as none", () => {
     expect(countLine(12, { designs: 2, languages: 3, unreviewed: 0 }, enDict, en)).toBe(
       "2 designs across 3 languages, 12 printings",
-    );
-    expect(countLine(1, { designs: 1, languages: 1, unreviewed: 0 }, enDict, en)).toBe(
-      "1 design across 1 language, 1 printing",
     );
   });
 
   test("each language orders its own line", () => {
-    expect(countLine(12, { designs: 2, languages: 3, unreviewed: 4 }, jaDict, ja)).toBe(
-      "3言語で2デザイン、12プリント · 未確認4件",
-    );
+    expect(countLine(12, counts(2, 3, 4), jaDict, ja)).toBe("3言語で2デザイン、12プリント · 未確認4件");
   });
 });

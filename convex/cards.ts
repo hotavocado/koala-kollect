@@ -36,8 +36,8 @@ export type BrowseCard = {
   nameSite: Doc<"card_observations">["site"] | null;
   imageUrl: string | null;
   printings: number;
-  // Null until the card has a design row, and on a summary stored before
-  // designs existed: the tile then shows the printing count alone.
+  // Null only on a summary stored before designs existed: the tile then shows
+  // the printing count alone. A card with no design row has designs 0.
   designs: DesignCounts | null;
 };
 
@@ -143,11 +143,15 @@ export async function browseRow(
       nameSite,
       imageUrl: imageFrom?.length ? cardImage(imageFrom, order) : summary.image_url,
       printings: summary.printings,
-      designs: withDesigns({
-        designs: summary.designs ?? 0,
-        languages: summary.languages ?? 0,
-        unreviewed: summary.unreviewed ?? 0,
-      }),
+      designs:
+        summary.designs === undefined
+          ? null
+          : {
+              designs: summary.designs,
+              languages: summary.languages ?? 0,
+              unreviewed: summary.unreviewed ?? 0,
+              exclusive: summary.exclusive ?? {},
+            },
     };
   }
   // No summary yet (a card the chain has not reached): read them live.
@@ -168,14 +172,8 @@ export async function browseRow(
     nameSite: shown?.site ?? null,
     imageUrl: cardImage(imageFrom?.length ? imageFrom : printings, order),
     printings: printings.length,
-    designs: withDesigns(designCounts(printings, await readDesigns(ctx.db, card.key, printings))),
+    designs: designCounts(printings, await readDesigns(ctx.db, card.key, printings)),
   };
-}
-
-// A card with no design row keeps today's printing count: zero designs would
-// read as if the card had none, when they are only not reviewed yet.
-function withDesigns(counts: DesignCounts): DesignCounts | null {
-  return counts.designs > 0 ? counts : null;
 }
 
 // The set index: one row per set across sites (and per code of a product with

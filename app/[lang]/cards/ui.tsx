@@ -1,6 +1,6 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import type { CardOrigin } from "@/convex/cards";
-import type { DesignCounts } from "@/convex/designCore";
+import { type DesignCounts, LANGUAGE_ORDER } from "@/convex/designCore";
 import { SITE_LOCALE } from "@/convex/lang";
 import type { Dict } from "@/lib/i18n/en";
 import { fill, type Plural } from "@/lib/i18n/format";
@@ -147,22 +147,31 @@ export function confidenceShown<C extends string>(source: string, confidence: C)
 // P-134, Special Card Set vol.2). Such a card has only Chinese text and no
 // official page to link to, and the card page says why.
 // The card's count line, on its tile and its page. Once the card has a design
-// it reads "2 designs across 3 languages, 12 printings", plus " · 4 unreviewed"
-// while printings sit outside every design; until then, the printing count.
+// it reads "2 designs across 3 languages, 12 printings"; until then "12
+// printings across 3 languages". Then " · 4 unreviewed" while printings sit
+// outside every design, and " · 3 cn exclusive" for each language with
+// exclusive designs. A summary stored before designs existed has no counts and
+// reads as the printing count alone.
 export function countLine(
   printings: number,
   designs: DesignCounts | null,
   t: Dict,
-  plural: (entry: Plural, n: number) => string,
+  plural: (entry: Plural, n: number, vars?: Record<string, string | number>) => string,
 ): string {
   const total = plural(t.count.printings, printings);
-  if (!designs) return total;
-  const line = fill(t.card.designLine, {
-    designs: plural(t.count.designs, designs.designs),
-    languages: plural(t.count.languages, designs.languages),
-    printings: total,
-  });
-  return designs.unreviewed > 0 ? `${line} · ${plural(t.count.unreviewed, designs.unreviewed)}` : line;
+  if (!designs || printings === 0) return total;
+  const languages = plural(t.count.languages, designs.languages);
+  const parts = [
+    designs.designs > 0
+      ? fill(t.card.designLine, { designs: plural(t.count.designs, designs.designs), languages, printings: total })
+      : fill(t.card.printingLine, { printings: total, languages }),
+  ];
+  if (designs.unreviewed > 0) parts.push(plural(t.count.unreviewed, designs.unreviewed));
+  for (const language of LANGUAGE_ORDER) {
+    const n = designs.exclusive?.[language] ?? 0;
+    if (n > 0) parts.push(plural(t.count.exclusive, n, { language: t.languageCode[language] }));
+  }
+  return parts.join(" · ");
 }
 
 export function cnOnly(regions: { language: string }[]): boolean {

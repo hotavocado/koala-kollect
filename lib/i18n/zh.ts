@@ -51,6 +51,7 @@ const zh = {
     designs: plural({ other: "{n} 种设计" }),
     languages: plural({ other: "{n} 种语言" }),
     unreviewed: plural({ other: "{n} 个未审核" }),
+    exclusive: plural({ other: "{language}独有 {n} 种" }),
   },
   finder: {
     label: "按编号或名称查找卡牌",
@@ -99,6 +100,7 @@ const zh = {
     from: "来自{origins}",
     whereFrom: "出处",
     designLine: "{languages}共 {designs}，{printings}",
+    printingLine: "{languages}共 {printings}",
     exclusive: "★ {language}独有",
     unreviewed: "尚未归入设计",
   },
@@ -175,6 +177,7 @@ const zh = {
     jp: "日文",
     cn: "简体中文",
   },
+  languageCode: { en: "英文", jp: "日文", cn: "中文" },
   variant: {
     base: "基础",
     normal: "普通",

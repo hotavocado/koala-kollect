@@ -52,6 +52,7 @@ const fr = {
     designs: plural({ one: "{n} design", other: "{n} designs" }),
     languages: plural({ one: "{n} langue", other: "{n} langues" }),
     unreviewed: plural({ one: "{n} non vérifiée", other: "{n} non vérifiées" }),
+    exclusive: plural({ one: "{n} exclusif {language}", other: "{n} exclusifs {language}" }),
   },
   finder: {
     label: "Trouver une carte par numéro ou par nom",
@@ -104,6 +105,7 @@ const fr = {
     from: "Provenance : {origins}",
     whereFrom: "Provenance",
     designLine: "{designs} en {languages}, {printings}",
+    printingLine: "{printings} en {languages}",
     exclusive: "★ Exclusif : {language}",
     unreviewed: "Pas encore classées par design",
   },
@@ -180,6 +182,7 @@ const fr = {
     jp: "Japonais",
     cn: "Chinois simplifié",
   },
+  languageCode: { en: "en", jp: "jp", cn: "cn" },
   variant: {
     base: "Base",
     normal: "Normale",
