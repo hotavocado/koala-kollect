@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // The sitemaps live at /sitemap/<id>.xml (app/sitemap.ts), but a sitemap
+  // only covers URLs under its own directory, so they are published at the
+  // root (sitemapPath in lib/sitemap.ts) and rewritten here.
+  async rewrites() {
+    return [{ source: "/sitemap-:id.xml", destination: "/sitemap/:id.xml" }];
+  },
   // Only our card-image proxy and the homepage Minokoala (app/minokoala.ts) are
   // optimized, only at the widths CardImage and the homepage ask for. A source
   // url's bytes never change, so the cache can hold for a year.

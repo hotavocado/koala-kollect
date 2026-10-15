@@ -51,7 +51,15 @@ export function bucketOf(key: string): number {
 
 export type SitemapShard = { lang: Locale; bucket: number };
 
-// Every shard id, "<lang>-<bucket>", served at /sitemap/<id>.xml.
+// A shard's public path. Next serves generateSitemaps output at
+// /sitemap/<id>.xml, but a sitemap only vouches for URLs under its own
+// directory, so next.config.ts rewrites this root-level path onto it and
+// robots.txt advertises this one.
+export function sitemapPath(id: string): string {
+  return `/sitemap-${id}.xml`;
+}
+
+// Every shard id, "<lang>-<bucket>".
 export function sitemapIds(): string[] {
   return LOCALES.flatMap((l) => Array.from({ length: SITEMAP_BUCKETS }, (_, b) => `${l}-${b}`));
 }
@@ -82,7 +90,7 @@ export function sitePaths(
 export function shardWarning(id: string, urls: number): string | null {
   if (urls <= SHARD_URL_WARN) return null;
   return (
-    `SITEMAP SHARD TOO BIG: /sitemap/${id}.xml lists ${urls} URLs, over ${SHARD_URL_WARN} ` +
+    `SITEMAP SHARD TOO BIG: ${sitemapPath(id)} lists ${urls} URLs, over ${SHARD_URL_WARN} ` +
     `(about 3.3 MB, near Vercel's 4.5 MB response cap): raise the bucket count, SITEMAP_BUCKETS in lib/sitemap.ts.`
   );
 }

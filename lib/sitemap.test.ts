@@ -8,6 +8,7 @@ import {
   shardWarning,
   sitemapEntries,
   sitemapIds,
+  sitemapPath,
   sitePaths,
 } from "./sitemap";
 
@@ -129,6 +130,18 @@ describe("sitemap ids", () => {
   });
 });
 
+describe("sitemapPath", () => {
+  // A sitemap only covers URLs under its own directory, so every shard is
+  // published at the site root.
+  test("every shard is published at the root", () => {
+    for (const id of sitemapIds()) {
+      const path = sitemapPath(id);
+      expect(path).toBe(`/sitemap-${id}.xml`);
+      expect(path.split("/")).toHaveLength(2);
+    }
+  });
+});
+
 describe("sitePaths", () => {
   const keys = cardKeys(200);
   const cards = keys.map((key, i) => ({ key, prints: i % 2 ? [`prt_${i}a`, `prt_${i}b`] : [] }));
@@ -164,7 +177,7 @@ describe("shardWarning", () => {
 
   test("past 4,000 names the shard and says to raise the bucket count", () => {
     const w = shardWarning("ja-3", 4001);
-    expect(w).toContain("/sitemap/ja-3.xml");
+    expect(w).toContain("/sitemap-ja-3.xml");
     expect(w).toContain("4001");
     expect(w).toContain("raise the bucket count");
   });

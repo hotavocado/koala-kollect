@@ -7,7 +7,8 @@ import { api } from "@/convex/_generated/api";
 import type { SitemapCard } from "@/convex/sitemap";
 import { parseSitemapId, shardWarning, sitemapEntries, sitemapIds, sitePaths } from "@/lib/sitemap";
 
-// The sitemaps, eight per language, served at /sitemap/<lang>-<bucket>.xml.
+// The sitemaps, eight per language, served at /sitemap/<lang>-<bucket>.xml and
+// published at /sitemap-<lang>-<bucket>.xml (see sitemapPath in lib/sitemap.ts).
 // Each lists its bucket's pages in that language with hreflang alternates to
 // the other four: the param routes (card, print, set) can't carry them in a
 // crawler-visible <head> under cacheComponents (see app/[lang]/_site/
