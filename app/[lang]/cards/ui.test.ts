@@ -1,23 +1,26 @@
 import { describe, expect, test } from "vitest";
+import enDict from "@/lib/i18n/en";
 import { cardLabel, cnOnly, confidenceShown, handoutWhen, partialDate, quantityNoteShown, releaseLabel } from "./ui";
+
+const EN = { tag: "en-US", t: enDict };
 
 describe("cardLabel", () => {
   const base = { name: null, number: null, donDesign: null };
 
   test("a printed name wins", () => {
-    expect(cardLabel({ ...base, category: "leader", number: "OP01-001", name: "Roronoa Zoro" })).toBe("Roronoa Zoro");
+    expect(cardLabel({ ...base, category: "leader", number: "OP01-001", name: "Roronoa Zoro" }, enDict)).toBe("Roronoa Zoro");
   });
 
   test("two DON designs read differently, by their art", () => {
-    const luffy = cardLabel({ ...base, category: "don", donDesign: "OP-01:monkey-d-luffy" });
-    const nami = cardLabel({ ...base, category: "don", donDesign: "OP-01:nami" });
+    const luffy = cardLabel({ ...base, category: "don", donDesign: "OP-01:monkey-d-luffy" }, enDict);
+    const nami = cardLabel({ ...base, category: "don", donDesign: "OP-01:nami" }, enDict);
     expect(luffy).toBe("DON!! Monkey D Luffy");
     expect(nami).toBe("DON!! Nami");
   });
 
   test("a DON with no design and an unnamed numbered card still read as something", () => {
-    expect(cardLabel({ ...base, category: "don" })).toBe("DON!!");
-    expect(cardLabel({ ...base, category: "character", number: "OP01-016" })).toBe("OP01-016");
+    expect(cardLabel({ ...base, category: "don" }, enDict)).toBe("DON!!");
+    expect(cardLabel({ ...base, category: "character", number: "OP01-016" }, enDict)).toBe("OP01-016");
   });
 });
 
@@ -26,21 +29,21 @@ describe("releaseLabel", () => {
   const jp = { releaseDate: "2022-09-30", releaseSite: "jp" as const };
 
   test("the index reads the month, the set page the day", () => {
-    expect(releaseLabel(en, "month", "en-US")).toBe("Sep 2022");
-    expect(releaseLabel(en, "day", "en-US")).toBe("Sep 30, 2022");
+    expect(releaseLabel(en, "month", EN)).toBe("Sep 2022");
+    expect(releaseLabel(en, "day", EN)).toBe("Sep 30, 2022");
   });
 
   test("a Japanese-site date is marked JP at both precisions", () => {
-    expect(releaseLabel(jp, "month", "en-US")).toBe("JP Sep 2022");
-    expect(releaseLabel(jp, "day", "en-US")).toBe("JP Sep 30, 2022");
+    expect(releaseLabel(jp, "month", EN)).toBe("JP Sep 2022");
+    expect(releaseLabel(jp, "day", EN)).toBe("JP Sep 30, 2022");
   });
 
   test("the first of the month stays in its month in UTC", () => {
-    expect(releaseLabel({ releaseDate: "2023-01-01", releaseSite: "en" }, "month", "en-US")).toBe("Jan 2023");
+    expect(releaseLabel({ releaseDate: "2023-01-01", releaseSite: "en" }, "month", EN)).toBe("Jan 2023");
   });
 
   test("no date reads as nothing", () => {
-    expect(releaseLabel({ releaseDate: null, releaseSite: null }, "month")).toBeNull();
+    expect(releaseLabel({ releaseDate: null, releaseSite: null }, "month", EN)).toBeNull();
   });
 });
 
@@ -52,11 +55,11 @@ describe("handoutWhen", () => {
   });
 
   test("a range reads start to end, and one end alone still reads", () => {
-    expect(handoutWhen("2025-01", "2025-03", "en-US")).toBe("Jan 2025 to Mar 2025");
-    expect(handoutWhen("2025-01", "2025-01", "en-US")).toBe("Jan 2025");
-    expect(handoutWhen("2025-01-10", null, "en-US")).toBe("Jan 10, 2025");
-    expect(handoutWhen(null, "2025-03", "en-US")).toBe("Until Mar 2025");
-    expect(handoutWhen(null, null)).toBeNull();
+    expect(handoutWhen("2025-01", "2025-03", EN)).toBe("Jan 2025 to Mar 2025");
+    expect(handoutWhen("2025-01", "2025-01", EN)).toBe("Jan 2025");
+    expect(handoutWhen("2025-01-10", null, EN)).toBe("Jan 10, 2025");
+    expect(handoutWhen(null, "2025-03", EN)).toBe("Until Mar 2025");
+    expect(handoutWhen(null, null, EN)).toBeNull();
   });
 
   test("a value outside the contract's formats is shown as written", () => {

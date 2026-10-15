@@ -4,24 +4,23 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { CardSetRow } from "@/convex/cards";
-import { Notice, releaseLabel, SET_KIND_HEADING } from "./ui";
+import { useI18n } from "@/lib/i18n/client";
+import { Notice, releaseLabel } from "./ui";
 
 // Providers mounts Convex only when NEXT_PUBLIC_CONVEX_URL is set, and the
 // hooks below throw without it, so the check has to sit above them.
 export function SetIndex() {
+  const { t } = useI18n();
   if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
-    return (
-      <Notice title="The card database isn't connected">
-        This build has no Convex deployment configured.
-      </Notice>
-    );
+    return <Notice title={t.site.notConnectedTitle}>{t.site.notConnectedBody}</Notice>;
   }
   return <ConnectedIndex />;
 }
 
 function ConnectedIndex() {
+  const { t } = useI18n();
   const sets = useQuery(api.cards.sets, {});
-  if (sets === undefined) return <p className="text-sm text-muted-foreground">Loading sets…</p>;
+  if (sets === undefined) return <p className="text-sm text-muted-foreground">{t.setIndex.loading}</p>;
   if (sets.length === 0) return <EmptyDatabase />;
 
   // The query returns sets in index order, so consecutive rows share a kind.
@@ -34,13 +33,10 @@ function ConnectedIndex() {
 
   return (
     <div className="flex flex-col gap-8">
-      <p className="text-sm text-muted-foreground">
-        Newest release first in each group, by the English release date. A set with no English release
-        shows its Japanese date, marked JP.
-      </p>
+      <p className="text-sm text-muted-foreground">{t.setIndex.order}</p>
       {sections.map((section) => (
         <section key={section.kind}>
-          <h2 className="text-lg font-semibold">{SET_KIND_HEADING[section.kind]}</h2>
+          <h2 className="text-lg font-semibold">{t.setKindHeading[section.kind]}</h2>
           <ul className="mt-3 flex flex-col gap-2">
             {section.sets.map((set) => (
               <li key={set.slug}>
@@ -55,16 +51,18 @@ function ConnectedIndex() {
 }
 
 function SetRow({ set }: { set: CardSetRow }) {
-  const released = releaseLabel(set, "month");
+  const i18n = useI18n();
+  const { t, href, plural } = i18n;
+  const released = releaseLabel(set, "month", i18n);
   return (
     <Link
-      href={`/cards/set/${set.slug}`}
+      href={href(`/cards/set/${set.slug}`)}
       className="flex min-h-14 items-center gap-3 rounded-lg bg-layer-1 px-4 py-3 transition-colors hover:bg-layer-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{set.title}</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
-          {set.cardCount} card{set.cardCount === 1 ? "" : "s"}
+          {plural(t.count.cards, set.cardCount)}
           {released && (
             <>
               {" · "}
@@ -85,25 +83,27 @@ function SetRow({ set }: { set: CardSetRow }) {
 // Empty is the expected state until the data repo publishes its first card
 // list and the set index is built from it, so say that plainly.
 function EmptyDatabase() {
+  const { t, tag, fill } = useI18n();
   const sync = useQuery(api.cards.lastSync, {});
-  let detail = "No sync has run yet.";
+  let detail = t.setIndex.noSync;
   if (sync) {
-    const when = formatWhen(sync.finishedAt ?? sync.startedAt);
-    detail =
+    const when = formatWhen(sync.finishedAt ?? sync.startedAt, tag);
+    detail = fill(
       sync.status === "ok"
-        ? `Last synced ${when}.`
+        ? t.setIndex.syncedOk
         : sync.status === "running"
-          ? `A sync started ${when} and is still running.`
-          : `Last checked ${when}, and no card list was ready to load.`;
+          ? t.setIndex.syncRunning
+          : t.setIndex.syncNothing,
+      { when },
+    );
   }
   return (
-    <Notice title="No sets yet">
-      The database fills from the official card lists once the first one is published.{" "}
-      {sync !== undefined && detail}
+    <Notice title={t.setIndex.emptyTitle}>
+      {t.setIndex.emptyBody} {sync !== undefined && detail}
     </Notice>
   );
 }
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+function formatWhen(iso: string, tag: string): string {
+  return new Date(iso).toLocaleString(tag, { dateStyle: "medium", timeStyle: "short" });
 }

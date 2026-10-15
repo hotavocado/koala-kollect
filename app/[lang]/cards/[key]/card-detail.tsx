@@ -5,30 +5,29 @@ import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { CardImage } from "../card-image";
 import type { CardDetail, CardPrinting } from "@/convex/cards";
-import { capitalize, CardFace, OfficialLink, SITE_LABEL, VARIANT_LABEL } from "../printing";
+import { useI18n } from "@/lib/i18n/client";
+import { CardFace, OfficialLink } from "../printing";
 import { cardLabel, cnOnly, ColorDots, Notice } from "../ui";
 
 // Same guard as the browse page: the Convex hooks throw without a deployment.
 export function CardDetailView({ cardKey }: { cardKey: string }) {
+  const { t } = useI18n();
   if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
-    return (
-      <Notice title="The card database isn't connected">
-        This build has no Convex deployment configured.
-      </Notice>
-    );
+    return <Notice title={t.site.notConnectedTitle}>{t.site.notConnectedBody}</Notice>;
   }
   return <ConnectedDetail cardKey={cardKey} />;
 }
 
 function ConnectedDetail({ cardKey }: { cardKey: string }) {
+  const { t, href } = useI18n();
   const card = useQuery(api.cards.detail, { key: cardKey });
-  if (card === undefined) return <p className="text-sm text-muted-foreground">Loading card…</p>;
+  if (card === undefined) return <p className="text-sm text-muted-foreground">{t.cards.loadingCard}</p>;
   if (card === null) {
     return (
-      <Notice title="Card not found">
-        There is no card with this link in the database.{" "}
-        <Link href="/cards" className="underline underline-offset-4 hover:text-foreground">
-          Browse the cards
+      <Notice title={t.card.notFoundTitle}>
+        {t.card.notFoundBody}{" "}
+        <Link href={href("/cards")} className="underline underline-offset-4 hover:text-foreground">
+          {t.card.browse}
         </Link>
       </Notice>
     );
@@ -37,14 +36,15 @@ function ConnectedDetail({ cardKey }: { cardKey: string }) {
 }
 
 function Detail({ card }: { card: CardDetail }) {
-  const label = cardLabel({ ...card, name: card.text?.name ?? null });
+  const { t, fill, plural } = useI18n();
+  const label = cardLabel({ ...card, name: card.text?.name ?? null }, t);
   const total = card.regions.reduce((n, r) => n + r.printings.length, 0);
   const stats = (
     [
-      ["Cost", card.cost],
-      ["Life", card.life],
-      ["Power", card.power],
-      ["Counter", card.counter],
+      [t.stat.cost, card.cost],
+      [t.stat.life, card.life],
+      [t.stat.power, card.power],
+      [t.stat.counter, card.counter],
     ] as const
   ).filter(([, value]) => value !== null);
 
@@ -62,24 +62,18 @@ function Detail({ card }: { card: CardDetail }) {
             <h1 className="text-3xl font-semibold">{label}</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
               <ColorDots colors={card.colors} />
-              <span>{[card.number, capitalize(card.category)].filter(Boolean).join(" · ")}</span>
+              <span>{[card.number, t.category[card.category]].filter(Boolean).join(" · ")}</span>
             </p>
             {card.officialUrl && (
               <p className="mt-2 text-sm">
-                <OfficialLink href={card.officialUrl}>See the card on the official card list</OfficialLink>
+                <OfficialLink href={card.officialUrl}>{t.card.officialPage}</OfficialLink>
               </p>
             )}
             {cnOnly(card.regions) && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                Listed only on the Simplified Chinese card list, so its name and text are in Chinese, and there is
-                no official page to link to.
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{t.card.cnOnly}</p>
             )}
             {card.donDesign && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                No official card list carries DON!! cards, so this one comes from TCGplayer&apos;s catalogue. The
-                name is TCGplayer&apos;s, and each printing&apos;s page links to its TCGplayer listing.
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{t.card.donSource}</p>
             )}
           </div>
 
@@ -96,7 +90,7 @@ function Detail({ card }: { card: CardDetail }) {
 
           {(card.attributes.length > 0 || (card.text?.types.length ?? 0) > 0) && (
             <p className="text-sm">
-              {[...card.attributes.map(capitalize), ...(card.text?.types ?? [])].join(" · ")}
+              {[...card.attributes.map((a) => t.attribute[a]), ...(card.text?.types ?? [])].join(" · ")}
             </p>
           )}
 
@@ -105,37 +99,35 @@ function Detail({ card }: { card: CardDetail }) {
           )}
           {card.text?.trigger && (
             <p className="whitespace-pre-line rounded-lg bg-layer-1 p-4 text-sm">
-              <span className="font-medium">Trigger </span>
+              <span className="font-medium">{t.card.trigger} </span>
               {card.text.trigger}
             </p>
           )}
           {card.text && (
             <p className="text-xs text-muted-foreground">
               {card.text.site === "tcgcsv"
-                ? "Name from TCGplayer's catalogue."
-                : `Text from the ${SITE_LABEL[card.text.site]} card list.`}
+                ? t.card.textFromTcgplayer
+                : fill(t.card.textFrom, { site: t.siteLanguage[card.text.site] })}
             </p>
           )}
         </div>
       </section>
 
       <section className="flex flex-col gap-8">
-        <h2 className="text-2xl font-semibold">
-          {total} printing{total === 1 ? "" : "s"}
-        </h2>
+        <h2 className="text-2xl font-semibold">{plural(t.count.printings, total)}</h2>
         {card.regions.length === 0 && (
-          <p className="text-sm text-muted-foreground">No printings of this card are listed yet.</p>
+          <p className="text-sm text-muted-foreground">{t.card.noPrintings}</p>
         )}
         {card.regions.map((region) => (
           <div key={region.language} className="flex flex-col gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3 className="text-lg font-semibold">
-                {SITE_LABEL[region.language]}{" "}
+                {t.siteLanguage[region.language]}{" "}
                 <span className="font-normal text-muted-foreground">{region.printings.length}</span>
               </h3>
               {region.listUrl && (
                 <OfficialLink href={region.listUrl} className="text-sm">
-                  On this site&apos;s card list
+                  {t.card.onSiteList}
                 </OfficialLink>
               )}
             </div>
@@ -156,22 +148,23 @@ function Detail({ card }: { card: CardDetail }) {
 // One print, linked to its own page. The row shows the print's own image and
 // what it is; its listings and origin claims live on the print page.
 function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: string; printing: CardPrinting }) {
+  const { t, href, fill, plural } = useI18n();
   const origins = [...new Set(p.claims.map((c) => c.distribution?.name).filter(Boolean))];
   return (
     <Link
-      href={`/cards/${cardKey}/${p.key}`}
+      href={href(`/cards/${cardKey}/${p.key}`)}
       className="flex gap-4 rounded-lg bg-layer-1 p-4 transition-colors hover:bg-layer-2"
     >
       <CardImage
         imageUrl={p.imageUrl}
         size="thumb"
-        alt={`${label}, ${VARIANT_LABEL[p.variant]}`}
+        alt={`${label}, ${t.variant[p.variant]}`}
         className="aspect-[63/88] w-16 shrink-0 rounded bg-layer-2 object-cover xs:w-20"
-        fallback={<ThumbFace text={VARIANT_LABEL[p.variant]} />}
+        fallback={<ThumbFace text={t.variant[p.variant]} />}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-xs text-muted-foreground">
-          {[p.rarity, VARIANT_LABEL[p.variant], ...p.imageIds, p.site === "tcgcsv" ? "from TCGplayer" : null]
+          {[p.rarity, t.variant[p.variant], ...p.imageIds, p.site === "tcgcsv" ? t.card.fromTcgplayer : null]
             .filter(Boolean)
             .join(" · ")}
         </p>
@@ -181,16 +174,14 @@ function PrintingRow({ cardKey, label, printing: p }: { cardKey: string; label: 
           <p className="break-words text-base font-medium">{p.sourceText}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {p.site === "tcgcsv"
-              ? "TCGplayer lists no source for this printing."
-              : "The card list prints no source for this printing."}
+            {p.site === "tcgcsv" ? t.card.noSourceTcgplayer : t.card.noSourceList}
           </p>
         )}
 
         {p.claims.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {origins.length > 0 ? `From ${origins.join(", ")}` : "Where it came from"} · {p.claims.length} source
-            {p.claims.length === 1 ? "" : "s"}
+            {origins.length > 0 ? fill(t.card.from, { origins: origins.join(", ") }) : t.card.whereFrom} ·{" "}
+            {plural(t.count.sources, p.claims.length)}
           </p>
         )}
       </div>

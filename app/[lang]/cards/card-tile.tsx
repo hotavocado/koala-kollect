@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { CardImage } from "./card-image";
 import type { BrowseCard } from "@/convex/cards";
+import { useI18n } from "@/lib/i18n/client";
 import { cardLabel, ColorDots } from "./ui";
 
+// Rendered by Client Components only: it reads the language from context.
 export function CardTile({ card }: { card: BrowseCard }) {
-  const label = cardLabel(card);
+  const { t, href, plural } = useI18n();
+  const label = cardLabel(card, t);
   // The text face stands in when the card has no official image, or it fails.
   const face = (
     <CardImage
@@ -22,7 +25,7 @@ export function CardTile({ card }: { card: BrowseCard }) {
   );
   return (
     <Link
-      href={`/cards/${card.key}`}
+      href={href(`/cards/${card.key}`)}
       className="flex flex-col gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       {face}
@@ -32,9 +35,7 @@ export function CardTile({ card }: { card: BrowseCard }) {
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <ColorDots colors={card.colors} />
           {card.number && <span>{card.number}</span>}
-          <span className="whitespace-nowrap">
-            {card.printings} printing{card.printings === 1 ? "" : "s"}
-          </span>
+          <span className="whitespace-nowrap">{plural(t.count.printings, card.printings)}</span>
         </p>
       </div>
     </Link>

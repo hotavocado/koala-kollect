@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { type CardImageSize, cardImageSrc } from "./image";
+import { type CardImageSize, cardImageSrc } from "@/lib/card-image";
 
 // The card's official image through our own origin, or the text face when
 // there is none or it fails to load. With a size, the image comes resized by

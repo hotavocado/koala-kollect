@@ -1,4 +1,7 @@
 import type { Doc } from "@/convex/_generated/dataModel";
+import type { Dict } from "@/lib/i18n/en";
+import { fill } from "@/lib/i18n/format";
+import { useI18n } from "@/lib/i18n/client";
 
 // Pieces the browse grid and the card page share.
 
@@ -11,20 +14,25 @@ export const COLOR_DOT: Record<Doc<"cards">["colors"][number], string> = {
   yellow: "bg-custom-yellow-saturated",
 };
 
+// Rendered by Client Components only: it reads the language from context.
 export function ColorDots({ colors }: { colors: Doc<"cards">["colors"] }) {
+  const { t } = useI18n();
   return colors.map((c) => (
-    <span key={c} aria-label={c} className={`size-2 shrink-0 rounded-full ${COLOR_DOT[c]}`} />
+    <span key={c} aria-label={t.color[c]} className={`size-2 shrink-0 rounded-full ${COLOR_DOT[c]}`} />
   ));
 }
 
 // What to call a card. DON cards have no number and no printed name, so the
 // design's art slug ("OP-01:monkey-d-luffy") is what tells them apart.
-export function cardLabel(card: {
-  name: string | null;
-  category: Doc<"cards">["category"];
-  number: string | null;
-  donDesign: string | null;
-}): string {
+export function cardLabel(
+  card: {
+    name: string | null;
+    category: Doc<"cards">["category"];
+    number: string | null;
+    donDesign: string | null;
+  },
+  t: Dict,
+): string {
   if (card.name) return card.name;
   if (card.category === "don") {
     const slug = card.donDesign?.split(":")[1];
@@ -32,32 +40,8 @@ export function cardLabel(card: {
     const art = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     return `DON!! ${art}`;
   }
-  return card.number ?? "Unnamed card";
+  return card.number ?? t.card.unnamed;
 }
-
-// Section headings on the set index, one per card_sets kind.
-export const SET_KIND_HEADING: Record<Doc<"card_sets">["kind"], string> = {
-  booster: "Booster packs",
-  extra: "Extra boosters",
-  premium: "Premium boosters",
-  starter: "Starter decks",
-  promo: "Promotions",
-  limited: "Limited products",
-  family: "Family decks",
-  other: "Other",
-};
-
-// One set's kind, as its page header names it.
-export const SET_KIND_LABEL: Record<Doc<"card_sets">["kind"], string> = {
-  booster: "Booster pack",
-  extra: "Extra booster",
-  premium: "Premium booster",
-  starter: "Starter deck",
-  promo: "Promotion",
-  limited: "Limited product",
-  family: "Family deck",
-  other: "Other",
-};
 
 // A release date as the index, the set page and the card page show it. It is a
 // calendar day with no zone, so it formats in UTC and a viewer west of UTC
@@ -67,14 +51,14 @@ export const SET_KIND_LABEL: Record<Doc<"card_sets">["kind"], string> = {
 export function releaseLabel(
   set: { releaseDate: string | null; releaseSite: "en" | "jp" | null },
   precision: "month" | "day",
-  locale?: string,
+  { tag, t }: { tag: string; t: Dict },
 ): string | null {
   if (!set.releaseDate) return null;
-  const prefix = set.releaseSite === "jp" ? "JP " : "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(set.releaseDate)) return prefix + set.releaseDate;
+  const mark = (date: string) => (set.releaseSite === "jp" ? fill(t.jpDate, { date }) : date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(set.releaseDate)) return mark(set.releaseDate);
   const style: Intl.DateTimeFormatOptions =
     precision === "month" ? { month: "short", year: "numeric" } : { dateStyle: "medium" };
-  return prefix + new Date(`${set.releaseDate}T00:00:00Z`).toLocaleDateString(locale, { timeZone: "UTC", ...style });
+  return mark(new Date(`${set.releaseDate}T00:00:00Z`).toLocaleDateString(tag, { timeZone: "UTC", ...style }));
 }
 
 // A handout's dates, which a source may give only to the year or month
@@ -92,12 +76,16 @@ export function partialDate(value: string, locale?: string): string {
   return date.toLocaleDateString(locale, { timeZone: "UTC", ...style });
 }
 
-export function handoutWhen(startsOn: string | null, endsOn: string | null, locale?: string): string | null {
+export function handoutWhen(
+  startsOn: string | null,
+  endsOn: string | null,
+  { tag, t }: { tag: string; t: Dict },
+): string | null {
   if (startsOn && endsOn && startsOn !== endsOn) {
-    return `${partialDate(startsOn, locale)} to ${partialDate(endsOn, locale)}`;
+    return fill(t.claim.range, { from: partialDate(startsOn, tag), to: partialDate(endsOn, tag) });
   }
-  if (startsOn) return partialDate(startsOn, locale);
-  if (endsOn) return `Until ${partialDate(endsOn, locale)}`;
+  if (startsOn) return partialDate(startsOn, tag);
+  if (endsOn) return fill(t.claim.until, { date: partialDate(endsOn, tag) });
   return null;
 }
 
@@ -133,12 +121,3 @@ export function Notice({ title, children }: { title: string; children: React.Rea
   );
 }
 
-// Shown wherever official card images are.
-export function ImageCredit() {
-  return (
-    <footer className="container pb-8 text-xs text-muted-foreground">
-      Card images © Eiichiro Oda/Shueisha, Toei Animation, from the official ONE PIECE CARD GAME card lists and from
-      TCGplayer. Koala Kollect is an unofficial fan project.
-    </footer>
-  );
-}

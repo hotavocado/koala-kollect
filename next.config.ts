@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS } from "./app/cards/image";
+import { CARD_IMAGE_QUALITY, CARD_IMAGE_WIDTHS } from "./lib/card-image";
 import { MINOKOALA } from "./app/minokoala";
 
 const widths = [...Object.values(CARD_IMAGE_WIDTHS), MINOKOALA.derivative].sort((a, b) => a - b);
