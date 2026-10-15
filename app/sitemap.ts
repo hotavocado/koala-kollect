@@ -1,52 +1,53 @@
 import type { MetadataRoute } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { cacheLife } from "next/cache";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import type { SitemapCard } from "@/convex/sitemap";
-import { LOCALES, isLocale } from "@/lib/i18n/locales";
-import { SITEMAP_URL_LIMIT, sitemapEntries, sitePaths } from "@/lib/sitemap";
+import { parseSitemapId, shardWarning, sitemapEntries, sitemapIds, sitePaths } from "@/lib/sitemap";
 
-// One sitemap per language, served at /sitemap/<lang>.xml. Each lists every
-// page in that language with hreflang alternates to the other four: the param
-// routes (card, print, set) can't carry them in a crawler-visible <head> under
-// cacheComponents (see app/[lang]/_site/alternates.tsx), so this is where
-// crawlers find them.
+// The sitemaps, eight per language, served at /sitemap/<lang>-<bucket>.xml.
+// Each lists its bucket's pages in that language with hreflang alternates to
+// the other four: the param routes (card, print, set) can't carry them in a
+// crawler-visible <head> under cacheComponents (see app/[lang]/_site/
+// alternates.tsx), so this is where crawlers find them.
 export async function generateSitemaps() {
-  return LOCALES.map((id) => ({ id }));
+  return sitemapIds().map((id) => ({ id }));
 }
 
 export default async function sitemap({ id }: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
-  const lang = await id;
-  if (!isLocale(lang)) notFound();
-  const paths = await allPaths();
-  if (paths.length > SITEMAP_URL_LIMIT) {
-    // Google ignores what is past the limit. Listed in full all the same, so
-    // the overflow shows here rather than as pages silently left out.
-    console.error(
-      `SITEMAP OVER LIMIT: /sitemap/${lang}.xml lists ${paths.length} URLs, over the ${SITEMAP_URL_LIMIT} a sitemap may hold. Split the shards.`,
-    );
-  }
-  return sitemapEntries(lang, paths);
+  // Request time only, never at build: a build must not need Convex reachable,
+  // nor a query the deployment may not have yet (the Vercel build and the
+  // Convex deploy run side by side on merge).
+  await connection();
+  const shardId = await id;
+  const shard = parseSitemapId(shardId);
+  if (!shard) notFound();
+  const { sets, cards } = await siteData();
+  const paths = sitePaths(shard.bucket, sets, cards);
+  // Listed in full all the same, so an overgrown shard shows here rather than
+  // as pages silently left out.
+  const warning = shardWarning(shardId, paths.length);
+  if (warning) console.error(warning);
+  return sitemapEntries(shard.lang, paths);
 }
 
-// Every site path, read from Convex. The card data changes at most once a day
-// (the sync), so the list is cached for a day: under cacheComponents the
-// sitemap is then prerendered at build and revalidated daily (measured: the
-// prerender manifest carries revalidate 86400 per shard). It takes no
-// arguments, so one cache entry serves all five shards.
-async function allPaths(): Promise<string[]> {
-  "use cache";
+// Every set slug and card (with its prints), read from Convex. The card data
+// changes at most once a day (the sync), so it is cached for a day, in the
+// remote cache: the sitemaps render at request time, and the in-memory one
+// is per serverless instance, so it would walk Convex on most requests (Next
+// docs, use-cache-remote.md). Without a remote handler (next start) Next falls
+// back to the in-memory one. It takes no arguments, so one entry serves all
+// forty shards.
+async function siteData(): Promise<{ sets: string[]; cards: SitemapCard[] }> {
+  "use cache: remote";
   cacheLife("days");
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set: the sitemap reads its pages from Convex.");
   const client = new ConvexHttpClient(url);
-
   const [sets, cards] = await Promise.all([client.query(api.cards.sets, {}), allCards(client)]);
-  return sitePaths(
-    sets.map((s) => s.slug),
-    cards,
-  );
+  return { sets: sets.map((s) => s.slug), cards };
 }
 
 async function allCards(client: ConvexHttpClient): Promise<SitemapCard[]> {
